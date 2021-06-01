@@ -1,0 +1,83 @@
+---
+title: "Missing_Officials_Scrape"
+author: "Adam Chapnik"
+date: "5/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(rvest)
+library(dplyr)
+library(stringr)
+library(readr)
+library(xml2)
+```
+
+Prefecture level
+
+```{r}
+# read in list of official names
+df <- read_csv("~/Desktop/Prefecture_bios\ /基本信息-Table\ 1.csv")
+# not all URLs are from the same website
+df2 <- df[(!grepl("https://baike.baidu.com/item/", df$link) & !is.na(df$link)),] # not baidu
+df <- df[!(!grepl("https://baike.baidu.com/item/", df$link) & !is.na(df$link)),] # only baidu
+
+# scrape baike.baidu.com pages
+urls <- df %>% pull(link) # convert URLs to vector
+get_bios <- function(x) { # x = vector of urls
+  if (is.na(x)) {
+    return(NA)
+  }else{
+    main_page <- xml2::read_html(x, encoding = "UTF-8") # open url
+    bio_html <- html_nodes(main_page, ".main-content") # scrape page
+    m_bio <- html_text(bio_html) # read htm
+    return(m_bio)
+  }
+}
+
+bios <- sapply(urls, get_bios) # vector of bios
+
+# create and export CSV
+names <- df %>% pull(leadername)
+bios <- as.vector(unlist(bios))
+df <- cbind(names, bios)
+df <- data.frame(df)
+
+## scrape non-baidu ##
+urls <- df2 %>% pull(link) # convert URLs to vector
+a <- urls[1] %>% xml2::read_html(encoding = "GB18030") %>% html_nodes("td td p") %>% html_text()
+b <- urls[2] %>% xml2::read_html() %>% html_nodes(".content") %>% html_text()
+c <- urls[3] %>% xml2::read_html(encoding = "GB18030") %>% html_nodes(".sys12s span") %>% html_text()
+d <- urls[4] %>% xml2::read_html() %>% html_nodes(".pictext~ p") %>% html_text()
+e <- urls[5] %>% xml2::read_html() %>% html_nodes("#content div") %>% html_text()
+f <- urls[6] %>% xml2::read_html() %>% html_nodes("p:nth-child(4)") %>% html_text()
+g <- urls[7] %>% xml2::read_html(encoding = "GB18030") %>% html_nodes(".p4") %>% html_text() ## questionable
+h <- urls[8] %>% xml2::read_html(encoding = "GB18030") %>% html_nodes("p > font font") %>% html_text() #####!!!!!
+i <- urls[9] %>% xml2::read_html(encoding = "GB18030") %>% html_nodes("p") %>% html_text()
+j <- urls[10] %>% xml2::read_html() %>% html_nodes(".font13") %>% html_text()
+k <- urls[11] %>% xml2::read_html(encoding = "GB18030") %>% html_nodes("p:nth-child(147)") %>% html_text() ## questionable
+l <- urls[12] %>% xml2::read_html() %>% html_nodes(".news-article") %>% html_text()
+
+a <- paste(a, collapse = "")
+c <- paste(c, collapse = "")
+d <- paste(d, collapse = "")
+e <- paste(e, collapse = "")
+f <- paste(f, collapse = "")
+g <- paste(g, collapse = "")
+bios <- c(a,b,c,d,e,f,g, "孙永亮，男，72岁，中共党员，曾任黑龙江省鸡西市副市长、市长。王荣波，女，72岁，曾任鸡西矿务局教育处副处长。1983年，孙永亮从矿务局副局长的岗位上调到市政府工作，历任鸡西市工业副市长、常务副市长、市长。这个北京矿业学院的高材生历经21个春秋的洗礼，从一名煤矿基层干部成长为一域之领导干部，为了鸡西的百万民众，为了这座城市的经济腾飞和社会进步，奉献了他全部的青春才华。从鸡冠山麓到穆棱河畔，从深邃的矿井到广阔的原野，几乎鸡西的每一个角落都留下了他奋斗的足迹。在他任期内每一项惠民政策的出台，每一个市直骨干企业的崛起，每一项基础设施项目的建设，都浸透着孙永亮的辛勤汗水。在他的主持和努力下，鸡西市完成了由以煤炭为主的单一产业结构城市，向多元化经济发展的城市转型。孙永亮在事业上创造了人生的辉煌，他的成功也得益于妻子王荣波的支持和无悔的付出。72岁高龄的王老依然有着豪爽的性格和端庄的气质，在她身上透着坚强与慈祥。熟悉他们夫妻的人都知道他们从恋爱到结婚再到现在，几十年风雨艰辛，一直携手相伴，无私付出。两位老人一辈子兢兢业业工作，一身正气，两袖清风。退休后他们本可以享受更多的待遇，但他们从不要求这些，不搞特殊化，出行都是乘公共汽车或步行，二老的品行在鸡西可以说是有口皆碑。", i,j,k,l)
+names <- df2 %>% pull(leadername) # convert URLs to vector
+
+df2 <- cbind(names, bios) %>% data.frame()
+df <- rbind(df2, df)
+
+write.csv(df, "~/Desktop/Prefecture_Full_Bios.csv", fileEncoding = "UTF-8")
+```
+
+
+
+

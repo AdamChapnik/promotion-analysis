@@ -1,0 +1,1207 @@
+---
+title: "Network_Analysis"
+author: "Adam Chapnik"
+date: "4/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Libraries, warning=TRUE, include=FALSE}
+library(readr)
+library(dplyr)
+library(rtweet)
+library(stringr)
+```
+
+```{r Read and Clean CVs, message=FALSE, include=FALSE}
+df_prov <- read_csv("~/Desktop/all\ provincial\ bios\ 1978-2021\ V0527/full\ info-Table\ 1.csv")
+df_polit <- read_csv("~/Desktop/poliburoV0527\ /full\ bios\ new-Table\ 1.csv")
+# remove empty columns
+df_polit <- Filter(function(x)!all(is.na(x)), df_polit)
+
+# clean
+df_prov$序号 <- NULL
+df_polit$X23 <- NULL
+df_polit$标志位 <- c(df_polit$标志位[1:563], df_polit$X21[564:nrow(df_polit)])
+df_polit$X21 <- NULL
+df_polit$X22 <- NULL
+
+# make column names the same
+names <- names(df_prov)
+colnames(df_prov) <- names
+colnames(df_polit) <- names
+
+# add identifying columns
+df_prov$level <- 'prov'
+df_polit$level <- 'poliburo'
+
+# remove shared names from df_polit
+shared <- intersect(df_polit$姓名, df_prov$姓名)
+df_polit <- subset(df_polit, !(姓名 %in% shared))
+# duplicate shared names in df_prov and code second set as PMs
+sub.polit <- subset(df_prov, 姓名 %in% shared)
+sub.polit$level <- 'poliburo'
+# rejoin polit
+df_polit <- rbind(df_polit, sub.polit)
+
+# join dfs
+df <- rbind(df_prov, df_polit)
+df <- unique(df)
+
+df_prov <- read_csv("~/Desktop/all\ provincial\ bios\ 1978-2021\ V0527/basic\ info-Table\ 1.csv")
+df_polit <- read_csv("~/Desktop//poliburoV0527\ /basic\ information-Table\ 1.csv")
+
+# clean
+df_polit <- df_polit %>% select("姓名", "性别","民族","出生日期","籍贯省","籍贯市","籍贯县/区", "最高学历",  "党派信息", "现状")
+df_prov <- df_prov %>% select("姓名", "性别","民族","出生日期(YYYY-MM-DD)","籍贯省","籍贯市","籍贯县/区", "最高学历",  "党派信息", "现状")
+colnames(df_prov) <- names(df_polit)
+df_prov <- df_prov %>% filter(!(姓名 == "王金山(1945)" & 出生日期 == "2/1/1945"))
+
+# add identifying columns
+df_prov$level <- 'prov'
+df_polit$level <- 'poliburo'
+
+# join dfs
+df_bas <- rbind(df_prov, df_polit)
+
+# merge with full
+df <- left_join(df, df_bas, by = c("姓名", "level"))
+
+# clean
+df$基本大类别[df$基本大类别 == "政府_国务院" & !is.na(df$基本大类别)] <- "政府/国务院"
+
+## FIX DATES
+# key
+A <- df$`起始时间（YYYY-MM-DD）`
+B <- df$`终止时间（（YYYY-MM-DD））`
+today <- "5/3/2021" ## TODAY'S DATE
+
+# fill missing end dates 
+for (i in 1:nrow(df)) {
+  if (is.na(B[i])) {
+    df$`终止时间（（YYYY-MM-DD））`[i] <- today
+  }else{
+    df$`终止时间（（YYYY-MM-DD））`[i] <- B[i]
+  }
+}
+
+# key
+A <- df$`起始时间（YYYY-MM-DD）`
+B <- df$`终止时间（（YYYY-MM-DD））`
+
+# %m/20yy
+for (i in 1:nrow(df)) {
+  
+  if (!grepl('[/].[/][0-2].|[/][^1-2].|19[0-9]{2}', A[i])) {
+    if (grepl('[/]20', A[i])) { 
+      m <- regmatches(A[i], regexpr("^[0-9]{1,2}", A[i])) # select month
+      y <- regmatches(A[i], regexpr("[0-9$]{4}", A[i])) # select year
+      df$`起始时间（YYYY-MM-DD）`[i] <- paste0(m, "/1/", y)
+    }else{
+      df$`起始时间（YYYY-MM-DD）`[i] <- A[i]
+    }
+  }else{
+    df$`起始时间（YYYY-MM-DD）`[i] <- A[i]
+  }
+  if (!grepl('[/].[/][0-2].|[/][^1-2].|19[0-9]{2}', B[i])) {
+    if (grepl('[/]20', B[i])) {
+      m <- regmatches(B[i], regexpr("^[0-9]{1,2}", B[i])) # select month
+      y <- regmatches(B[i], regexpr("[0-9$]{4}", B[i])) # select year
+      df$`终止时间（（YYYY-MM-DD））`[i] <- paste0(m, "/1/", y)
+    }else{
+      df$`终止时间（（YYYY-MM-DD））`[i] <- B[i]
+    }
+  }else{
+    df$`终止时间（（YYYY-MM-DD））`[i] <- B[i]
+  }
+}
+
+# key
+A <- df$`起始时间（YYYY-MM-DD）`
+B <- df$`终止时间（（YYYY-MM-DD））`
+
+# %m/yy and %m/%d/yy (when yyyy < 2000) 
+for (i in 1:nrow(df)) {
+  if (grepl('[/][^0-2][0-9]', A[i]) & grepl('[/].[/]', A[i])) { 
+    x <- paste0("19", regmatches(A[i], regexpr("[1-9][0-9]$", A[i])))
+    df$`起始时间（YYYY-MM-DD）`[i] <- gsub("[1-9][0-9]$", x, A[i])
+  } else {
+    if (grepl('[/][^0-2][0-9]', A[i])) {
+      y <- paste0("19", regmatches(A[i], regexpr("[1-9][0-9]$", A[i])))
+      m <- regmatches(A[i], regexpr("^[0-9]{1,2}", A[i]))
+      df$`起始时间（YYYY-MM-DD）`[i] <- paste0(m, "/1/", y)
+    } else {
+      df$`起始时间（YYYY-MM-DD）`[i] <- A[i]
+    }
+  }
+  if (grepl('[/][^0-2][0-9]', B[i]) & grepl('[/].[/]', B[i])) {
+    x <- paste0("19", regmatches(B[i], regexpr("[1-9][0-9]$", B[i])))
+    df$`终止时间（（YYYY-MM-DD））`[i] <- gsub("[1-9][0-9]$", x, B[i])
+  } else {
+    if (grepl('[/][^0-2][0-9]', B[i])) {
+      y <- paste0("19", regmatches(B[i], regexpr("[1-9][0-9]$", B[i])))
+      m <- regmatches(B[i], regexpr("^[0-9]{1,2}", B[i]))
+      df$`终止时间（（YYYY-MM-DD））`[i] <- paste0(m, "/1/", y)
+    } else {
+      df$`终止时间（（YYYY-MM-DD））`[i] <- B[i]
+    }
+  }
+}
+
+# key
+A <- df$`起始时间（YYYY-MM-DD）`
+B <- df$`终止时间（（YYYY-MM-DD））`
+
+# %m/%d/1y and %m/%d/0y (when yyyy >= 2000)
+for (i in 1:nrow(df)) {
+  if (grepl('[/][0-1][0-9]\\D', A[i])) {
+    x <- paste0("20", regmatches(A[i], regexpr("[0-1][0-9]$", A[i])))
+    df$`起始时间（YYYY-MM-DD）`[i] <- gsub("[0-1][0-9]$", x, A[i])
+  }else{
+    df$`起始时间（YYYY-MM-DD）`[i] <- A[i]
+  }
+  if (grepl('[/][0-1][0-9]\\D', B[i])) {
+    x <- paste0("20", regmatches(B[i], regexpr("[0-1][0-9]$", B[i])))
+    df$`终止时间（（YYYY-MM-DD））`[i] <- gsub("[0-1][0-9]$", x, B[i])
+  }else{
+    df$`终止时间（（YYYY-MM-DD））`[i] <- B[i]
+  }
+}
+
+# key
+A <- df$`起始时间（YYYY-MM-DD）`
+B <- df$`终止时间（（YYYY-MM-DD））`
+
+# YYYY
+for (i in 1:nrow(df)) {
+  if (!grepl('[/]', A[i])) { # does not contain slash
+    df$`起始时间（YYYY-MM-DD）`[i] <- paste0("1/1/", A[i])
+  }else{
+    df$`起始时间（YYYY-MM-DD）`[i] <- A[i]
+  }
+  if (!grepl('[/]', B[i])) {
+    df$`终止时间（（YYYY-MM-DD））`[i] <- paste0("12/31/", B[i])
+  }else{
+    df$`终止时间（（YYYY-MM-DD））`[i] <- B[i]
+  }
+}
+
+# convert date types
+df$`起始时间（YYYY-MM-DD）` <- as.Date(df$`起始时间（YYYY-MM-DD）`, format = '%m/%d/%Y')
+df$`终止时间（（YYYY-MM-DD））` <- as.Date(df$`终止时间（（YYYY-MM-DD））`, format = '%m/%d/%Y')
+
+# save
+write.csv(df, "Bios.csv")
+```
+
+
+```{r Clean CVs, message=FALSE, warning=FALSE}
+df <- read_csv("Bios.csv")
+```
+
+
+```{r Variable Translations, warning=FALSE}
+zh_basic <- c("姓名", "性别","民族","出生日期","籍贯省","籍贯市","籍贯县/区", "最高学历",  "党派信息", "现状")
+en_basic <- c("Name", "Sex", "Nationality", "Date of Birth", "Hometown", "Hometown City", "Hometown County/District", "Highest Education", "Party Information", "Current Situation")
+
+zh_full <- c("用户编码","姓名","起始时间（YYYY-MM-DD）","终止时间（（YYYY-MM-DD））","地方一级关键词" ,"地方二级关键词","地区级别","地方三级关键词","基本大类别","职务一级关键词","职务二级关键词","职务三级关键词","具体职务","级别","标志位","学历","序号")
+en_full <- c("User Code", "Name", "Start Time (YYYY-MM-DD)", "End Time ((YYYY-MM-DD))", "Local Level One Keyword" ,"Local Level Two Keyword ","Regional Level","Local Level Three Keywords","Basic Categories","Post Level One Keywords","Post Level Two Keywords","Post Level Three Keywords","Specific Posts", "Level","Mark Position","Education","Serial Number")
+
+basic_trans <- cbind(zh_basic, en_basic)
+full_trans <- cbind(zh_full, en_full)
+basic_trans
+full_trans
+```
+
+## Birthplace
+
+```{r Birthplace Ties, message=FALSE, warning=FALSE}
+## group birthplace, by each level
+# province
+grped_prov <- split(df, with(df, interaction(籍贯省)), drop = TRUE)
+# prefecture
+grped_pref <- split(df, with(df, interaction(籍贯市)), drop = TRUE)
+# county
+grped_county <- split(df, with(df, interaction(`籍贯县/区`)), drop = TRUE)
+
+## select only dfs with ties (BOTH PM and PL officials AND >1 unique name)
+possible_matches <- function(x, list){
+  df <- list[[x]]
+  test <- df %>% pull(level)
+  
+  a <- 'poliburo' %in% test 
+  b <- 'prov' %in% test
+  
+  c <- df$姓名 %>% unique() %>% length() # number unique names
+  
+  if ((a & b) & (c > 1)) {
+      return(df)
+    }else{
+      return(NA)
+  }
+}
+# province
+grped_prov <- lapply(1:length(grped_prov), possible_matches, list = grped_prov)
+# prefecture
+grped_pref <- lapply(1:length(grped_pref), possible_matches, list = grped_pref)
+# county
+grped_county <- lapply(1:length(grped_county), possible_matches, list = grped_county)
+
+## create ties for network analysis
+ties <- function(x, list, loc) {
+  a <- which(!is.na(list))[x]
+  set <- list[[a]] %>% select(姓名, loc, level) %>% unique()
+  sender <- set %>% filter(level == "prov") %>% select(姓名)
+  n <- nrow(sender)
+  receiver <- set %>% filter(level == "poliburo") %>% select(姓名)
+  sender <- sender %>% rep(times = nrow(receiver)) %>% unlist() %>% 
+    as.matrix() %>% as.data.frame(row.names = F)
+  receiver <- receiver %>% pull(姓名) %>% rep(each = n) %>% unlist() %>% 
+    as.matrix() %>% as.data.frame(row.names = F)
+  tie.df <- data.frame(sender, receiver)
+  colnames(tie.df)[1] <- "姓名"
+  colnames(tie.df)[2] <- "姓名"
+  location <- set[1,2] %>% pull(loc) %>% rep(times = nrow(tie.df)) %>% unlist()
+  tie.df <- cbind(tie.df, location)
+  colnames(tie.df)[3] <- loc
+  return(tie.df)
+}
+# province
+len <- which(!is.na(grped_prov)) %>% length()
+g.prov <- lapply(1:len, ties, list = grped_prov, loc = '籍贯省')
+g.prov <- do_call_rbind(g.prov)
+# prefecture
+len <- which(!is.na(grped_pref)) %>% length()
+g.pref <- lapply(1:len, ties, list = grped_pref, loc = '籍贯市')
+g.pref <- do_call_rbind(g.pref)
+# county
+len <- which(!is.na(grped_county)) %>% length()
+g.county <- lapply(1:len, ties, list = grped_county, loc = '籍贯县/区')
+g.county <- do_call_rbind(g.county)
+
+## fix column names then merge
+colnames(g.prov) <- c('姓名_PL', '姓名_PM', '籍贯省')
+colnames(g.pref) <- c('姓名_PL', '姓名_PM', '籍贯市')
+colnames(g.county) <- c('姓名_PL', '姓名_PM', '籍贯县/区')
+# merge
+birth.g <- left_join(g.prov, g.pref, by = c('姓名_PL', '姓名_PM'))
+birth.g <- left_join(birth.g, g.county, by = c('姓名_PL', '姓名_PM'))
+# add tie type
+birth.g$Tie <- "Birthplace"
+# csv
+write.csv(birth.g, "~/Desktop/CCP_Ties/Birthplace_Ties.csv")
+```
+
+## Communist Youth League
+
+```{r CYL}
+# CYL (1 = central, 2 = central and provincial, 3 = all)
+cyl1 <- df %>% filter(基本大类别 == "共青团") %>% 
+  filter(地方一级关键词 == "中央")
+cyl2 <- df %>% filter(基本大类别 == "共青团") %>% 
+  filter(is.na(地方二级关键词)) %>%
+  filter(is.na(地方三级关键词))
+cyl3 <- df %>% filter(
+  grepl("共青团", 基本大类别) |
+  grepl("团委", 基本大类别) |
+  grepl("共青团委", 基本大类别) |  
+  grepl("共青团", 职务一级关键词) |
+  grepl("团委", 职务一级关键词) |
+  grepl("共青团委", 职务一级关键词) |
+  grepl("共青团", 职务二级关键词) |
+  grepl("团委", 职务二级关键词) |
+  grepl("共青团委", 职务二级关键词) |
+  grepl("共青团", 职务三级关键词) |
+  grepl("团委", 职务三级关键词) |
+  grepl("共青团委", 职务三级关键词) |
+  grepl("共青团", 具体职务) |
+  grepl("共青团委", 具体职务) |
+  grepl("团委", 具体职务)
+)
+# outputs
+cyl1 <- cyl1 %>% select(姓名, `起始时间（YYYY-MM-DD）`, `终止时间（（YYYY-MM-DD））`, 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别, 职务一级关键词, 职务二级关键词, 职务三级关键词, 具体职务)
+cyl2 <- cyl2 %>% select(姓名, `起始时间（YYYY-MM-DD）`, `终止时间（（YYYY-MM-DD））`, 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别, 职务一级关键词, 职务二级关键词, 职务三级关键词, 具体职务)
+cyl3 <- cyl3 %>% select(姓名, `起始时间（YYYY-MM-DD）`, `终止时间（（YYYY-MM-DD））`, 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别, 职务一级关键词, 职务二级关键词, 职务三级关键词, 具体职务)
+# add special columns
+cyl1$Cent_CYL <- 1
+cyl1$Cent_Prov_CYL <- 0
+cyl1$All_CYL <- 0
+cyl2$Cent_CYL <- 0
+cyl2$Cent_Prov_CYL <- 1
+cyl2$All_CYL <- 0
+cyl3$Cent_CYL <- 0
+cyl3$Cent_Prov_CYL <- 0
+cyl3$All_CYL <- 1
+# remove duplicate rows
+cyl1 <- cyl1 %>% unique()
+cyl2 <- cyl2 %>% unique()
+cyl3 <- cyl3 %>% unique() 
+# rename columns
+colnames(cyl1) <- c("姓名", "起始时间", "终止时间", "地方一级关键词", "地方二级关键词", "地方三级关键词", "基本大类别", "职务一级关键词", "职务二级关键词", "职务三级关键词", "具体职务", "Cent_CYL", "Cent_Prov_CYL", "All_CYL")
+colnames(cyl2) <- c("姓名", "起始时间", "终止时间", "地方一级关键词", "地方二级关键词", "地方三级关键词", "基本大类别", "职务一级关键词", "职务二级关键词", "职务三级关键词", "具体职务", "Cent_CYL", "Cent_Prov_CYL", "All_CYL")
+colnames(cyl3) <- c("姓名", "起始时间", "终止时间", "地方一级关键词", "地方二级关键词", "地方三级关键词", "基本大类别", "职务一级关键词", "职务二级关键词", "职务三级关键词", "具体职务", "Cent_CYL", "Cent_Prov_CYL", "All_CYL")
+
+## merge
+# part 1 and 2
+cylA <- right_join(cyl1, cyl2, 
+          by = c("姓名", "起始时间", "终止时间", "地方一级关键词", "地方二级关键词", "地方三级关键词", "基本大类别", "职务一级关键词", "职务二级关键词", "职务三级关键词", "具体职务", "All_CYL")) %>%
+  select(姓名, 起始时间, 终止时间, 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别, 职务一级关键词, 职务二级关键词, 职务三级关键词, 具体职务, Cent_CYL.x, Cent_Prov_CYL.y, All_CYL)
+# rename
+colnames(cylA) <- c("姓名", "起始时间", "终止时间", "地方一级关键词", "地方二级关键词", "地方三级关键词", "基本大类别", "职务一级关键词", "职务二级关键词", "职务三级关键词", "具体职务", "Cent_CYL", "Cent_Prov_CYL", "All_CYL")
+# fill in NAs
+cylB <- cylA %>% filter(is.na(Cent_CYL))
+cylA <- cylA %>% filter(!is.na(Cent_CYL))
+cylB$Cent_CYL <- 0
+# rbind
+cylA <- rbind(cylA, cylB)
+# part 1, 2, and 3
+cyl <- right_join(cylA, cyl3, 
+          by = c("姓名", "起始时间", "终止时间", "地方一级关键词", "地方二级关键词", "地方三级关键词", "基本大类别", "职务一级关键词", "职务二级关键词", "职务三级关键词", "具体职务")) %>%
+  select(姓名, 起始时间, 终止时间, 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别, 职务一级关键词, 职务二级关键词, 职务三级关键词, 具体职务, Cent_CYL.x, Cent_Prov_CYL.x, All_CYL.y)
+# rename
+colnames(cyl) <- c("姓名", "起始时间", "终止时间", "地方一级关键词", "地方二级关键词", "地方三级关键词", "基本大类别", "职务一级关键词", "职务二级关键词", "职务三级关键词", "具体职务", "Cent_CYL", "Cent_Prov_CYL", "All_CYL")
+# fill in NAs
+cylB <- cyl %>% filter(is.na(Cent_CYL))
+cylA <- cyl %>% filter(!is.na(Cent_CYL))
+cylB$Cent_CYL <- 0
+cylB$Cent_Prov_CYL <- 0
+# rbind
+cyl <- rbind(cylA, cylB)
+# save
+write.csv(cyl, "~/Desktop/CCP_Ties/CYL_V2.csv")
+```
+
+## Education
+
+```{r Custom Functions}
+## create College ties
+ed_ties <- function(x, list) {
+  a <- which(!is.na(list))[x]
+  set <- list[[a]] %>% 
+    select(
+      `起始时间（YYYY-MM-DD）`, 
+      `终止时间（（YYYY-MM-DD））`, 
+      姓名, 
+      职务一级关键词, 
+      level,
+      学历) %>% unique()
+  sender <- set %>% filter(level == "prov") %>% select(姓名)
+  n <- nrow(sender)
+  receiver <- set %>% filter(level == "poliburo") %>% select(姓名)
+  sender <- sender %>% rep(times = nrow(receiver)) %>% unlist() %>% 
+      as.matrix() %>% as.data.frame(row.names = F)
+  receiver <- receiver %>% pull(姓名) %>% rep(each = n) %>% unlist() %>% 
+      as.matrix() %>% as.data.frame(row.names = F)
+  tie.df <- data.frame(sender, receiver)
+  colnames(tie.df)[1] <- "姓名_PL"
+  colnames(tie.df)[2] <- "姓名_PM"
+  
+  set_PL <- set %>% filter(level == "prov")
+  set_PM <- set %>% filter(level == "poliburo")
+  
+  tie.df <- left_join(tie.df, set_PL, by = c('姓名_PL' = '姓名')) %>% 
+    left_join(set_PM, by = c('姓名_PM' = '姓名')) %>% 
+    select(
+      姓名_PL, 
+      姓名_PM, 
+      职务一级关键词.x,
+      `起始时间（YYYY-MM-DD）.x`, 
+      `终止时间（（YYYY-MM-DD））.x`, 
+      `起始时间（YYYY-MM-DD）.y`, 
+      `终止时间（（YYYY-MM-DD））.y`,
+      学历.x,
+      学历.y)
+  colnames(tie.df) <- c("姓名_PL", "姓名_PM", "学校", "起始时间_PL", "终止时间_PL", "起始时间_PM", "终止时间_PM", "学历_PL", "学历_PM")
+  return(tie.df)
+}
+
+## create Party School ties 
+cps_ties <- function(x, list) {
+  a <- which(!is.na(list))[x]
+  set <- list[[a]] %>% 
+    select(
+      `起始时间（YYYY-MM-DD）`, 
+      `终止时间（（YYYY-MM-DD））`, 
+      姓名, 
+      level,
+      学历,
+      地方一级关键词,
+      地方二级关键词,
+      地方三级关键词, 
+      职务一级关键词,
+      职务二级关键词,  
+      职务三级关键词) %>% unique()
+  sender <- set %>% filter(level == "prov") %>% select(姓名)
+  n <- nrow(sender)
+  receiver <- set %>% filter(level == "poliburo") %>% select(姓名)
+  sender <- sender %>% rep(times = nrow(receiver)) %>% unlist() %>% 
+      as.matrix() %>% as.data.frame(row.names = F)
+  receiver <- receiver %>% pull(姓名) %>% rep(each = n) %>% unlist() %>% 
+      as.matrix() %>% as.data.frame(row.names = F)
+  tie.df <- data.frame(sender, receiver)
+  colnames(tie.df)[1] <- "姓名_PL"
+  colnames(tie.df)[2] <- "姓名_PM"
+  
+  set_PL <- set %>% filter(level == "prov")
+  set_PM <- set %>% filter(level == "poliburo")
+  
+  tie.df <- left_join(tie.df, set_PL, by = c('姓名_PL' = '姓名')) %>% 
+    left_join(set_PM, by = c('姓名_PM' = '姓名')) %>% 
+    select(
+      姓名_PL, 
+      姓名_PM, 
+      地方一级关键词.x,
+      地方二级关键词.x,
+      地方三级关键词.x,
+      职务一级关键词.x,
+      职务一级关键词.y,
+      职务二级关键词.x, 
+      职务二级关键词.y,
+      职务三级关键词.x,
+      职务三级关键词.y,
+      `起始时间（YYYY-MM-DD）.x`, 
+      `终止时间（（YYYY-MM-DD））.x`, 
+      `起始时间（YYYY-MM-DD）.y`, 
+      `终止时间（（YYYY-MM-DD））.y`)
+  colnames(tie.df) <- c("姓名_PL", "姓名_PM", "地方一级关键词", "地方二级关键词", "地方三级关键词", "职务一级关键词_PL", "职务一级关键词_PM", "职务二级关键词_PL", "职务二级关键词_PM", "职务三级关键词_PL", "职务三级关键词_PM", "起始时间_PL", "终止时间_PL", "起始时间_PM", "终止时间_PM")
+  return(tie.df)
+}
+
+## code for overlap
+overlap <- function(x, list) {
+  df <- list[[x]]
+  df$Overlap <- ""
+  for (i in 1:length(df$Overlap)) {
+    if (df$起始时间_PL[i] == df$起始时间_PM[i]) {
+      df$Overlap[i] = 1
+    }else{
+      if (df$起始时间_PL[i] < df$起始时间_PM[i] & df$终止时间_PL[i] > df$起始时间_PM[i]) {
+        df$Overlap[i] = 1
+      }else{
+        if (df$起始时间_PL[i] > df$起始时间_PM[i] & df$起始时间_PL[i] < df$终止时间_PM[i]) {
+          df$Overlap[i] = 1
+        }else{
+          df$Overlap[i] = 0
+        }
+      }
+    } 
+  }
+  return(df)
+ }  
+```
+
+
+```{r Party School}
+cps_during <- df %>% filter(基本大类别 == "学校") %>%
+  filter(grepl("学员", 具体职务)) %>%
+  filter(
+    grepl("党校", 职务一级关键词) |
+    grepl("党校", 职务二级关键词) |
+    grepl("党校", 职务三级关键词) |
+    grepl("培训", 职务一级关键词) |
+    grepl("培训", 职务二级关键词) |
+    grepl("培训", 职务三级关键词) |
+    grepl("进修", 职务一级关键词) |
+    grepl("进修", 职务二级关键词) |
+    grepl("进修", 职务三级关键词) |
+    grepl("干部", 职务一级关键词) |
+    grepl("干部", 职务二级关键词) |
+    grepl("干部", 职务三级关键词)
+)
+         
+# grp by 地方一级关键词
+grp_cps_during <- cps_during %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# select only dfs with ties (BOTH PM and PL officials)
+grp_cps_during <- lapply(1:length(grp_cps_during), possible_matches, list = grp_cps_during)
+# create ties
+len <- which(!is.na(grp_cps_during)) %>% length()
+uni.g <- lapply(1:len, cps_ties, list = grp_cps_during)
+# remove duplicated rows
+len <- uni.g %>% length()
+uni.g <- lapply(1:len, function(x, list){list[[x]] %>% unique()}, list = uni.g)
+# remove self-ties
+no_self <- function(x, list) {
+ list[[x]] %>% filter(姓名_PL != 姓名_PM)
+}
+uni.g <- lapply(1:len, no_self, list = uni.g)
+# overlap
+uni.g <- lapply(1:len, overlap, list = uni.g)
+# merge dfs
+uni.g <- do_call_rbind(uni.g)
+# grp by tie (names)
+uni.g <- split(uni.g, with(uni.g, interaction(姓名_PL, 姓名_PM)), drop = TRUE)
+# remove redundant rows
+uni.g <- lapply(1:length(uni.g), 
+       function(x){
+         a <- uni.g[[x]] %>% select("姓名_PL","姓名_PM", "地方一级关键词", "地方二级关键词", "地方三级关键词","起始时间_PL","终止时间_PL","起始时间_PM","终止时间_PM","Overlap") %>% duplicated()
+         if (any(a)) {
+           uni.g[[x]][!a,]
+         }else{
+           uni.g[[x]]
+         }
+        })
+uni.g <- do_call_rbind(uni.g)
+# save as unique (for now)
+party.g <- uni.g 
+# add tie type
+party.g$Tie <- "Party School"
+# filter for overlap
+party.g <- party.g %>% filter(Overlap == 1)
+party.g
+```
+
+
+```{r Undergrad}
+ug <- df %>% filter(grepl("学生", 具体职务)) %>% 
+  filter(基本大类别 == "学校")
+# grp by 职务一级关键词
+grp_ug <- ug %>% group_by(职务一级关键词) %>% group_split()
+# select only dfs with ties (BOTH PM and PL officials)
+grp_ug <- lapply(1:length(grp_ug), possible_matches, list = grp_ug)
+# create ties
+len <- which(!is.na(grp_ug)) %>% length()
+ug.g <- lapply(1:len, ed_ties, list = grp_ug) 
+# overlap 
+len <- ug.g %>% length()
+ug.g <- lapply(1:len, overlap, list = ug.g)
+# merge dfs
+ug.g <- do_call_rbind(ug.g)
+# add tie type
+ug.g$Tie <- "ET1" 
+# no self ties
+no_self <- function(df) {
+ df %>% filter(姓名_PL != 姓名_PM)
+}
+ug.g <- no_self(ug.g)
+# remove duplicates
+ug.g <- unique(ug.g)
+ug.g 
+```
+
+
+```{r Graduate}
+g <- df %>% filter(
+  grepl("硕士生", 具体职务) |
+  grepl("博士生", 具体职务)
+) %>% filter(基本大类别 == "学校")
+# grp by 职务一级关键词
+grp_g <- g %>% group_by(职务一级关键词) %>% group_split()
+# select only dfs with ties (BOTH PM and PL officials)
+grp_g <- lapply(1:length(grp_g), possible_matches, list = grp_g)
+# create ties
+len <- which(!is.na(grp_g)) %>% length()
+g.g <- lapply(1:len, ed_ties, list = grp_g) 
+# overlap 
+len <- g.g %>% length()
+g.g <- lapply(1:len, overlap, list = g.g)
+# merge dfs
+g.g <- do_call_rbind(g.g)
+# add tie type
+g.g$Tie <- "ET2" 
+# no self ties
+no_self <- function(df) {
+ df %>% filter(姓名_PL != 姓名_PM)
+}
+g.g <- no_self(g.g)
+# remove duplicates
+g.g <- unique(g.g)
+g.g
+```
+
+
+```{r Any University}
+ed <- df %>% filter(
+  grepl("学生", 具体职务) |
+  grepl("博士生", 具体职务) |
+  grepl("硕士生", 具体职务)
+) %>% filter(基本大类别 == "学校")
+# grp by 职务一级关键词
+grp_ed <- ed %>% group_by(职务一级关键词) %>% group_split()
+# select only dfs with ties (BOTH PM and PL officials)
+grp_ed <- lapply(1:length(grp_ed), possible_matches, list = grp_ed)
+# create ties
+len <- which(!is.na(grp_ed)) %>% length()
+ed.g <- lapply(1:len, ed_ties, list = grp_ed) 
+# overlap 
+len <- ed.g %>% length()
+ed.g <- lapply(1:len, overlap, list = ed.g)
+# merge dfs
+ed.g <- do_call_rbind(ed.g)
+# add tie type
+ed.g$Tie <- "ET3" 
+# no self ties
+no_self <- function(df) {
+ df %>% filter(姓名_PL != 姓名_PM)
+}
+ed.g <- no_self(ed.g)
+# remove duplicates
+ed.g <- unique(ed.g)
+ed.g 
+```
+
+
+```{r Education Ties CSVs, include=FALSE}
+# join education ties
+ed_ties <- rbind(ug.g, g.g, ed.g)
+#csv
+write.csv(ed_ties, "~/Desktop/CCP_Ties/Education_Ties_V3.csv")
+write.csv(party.g, "~/Desktop/CCP_Ties/Party_School_Ties_V3.csv")
+```
+
+## Work Ties
+
+```{r Custom Functions}
+## create ties for network analysis
+wrk_ties <- function(x, list) {
+  a <- which(!is.na(list))[x]
+  set <- list[[a]] %>% 
+    select(
+      `起始时间（YYYY-MM-DD）`, 
+      `终止时间（（YYYY-MM-DD））`, 
+      姓名, 
+      地方一级关键词, 
+      地方二级关键词,
+      地方三级关键词,
+      基本大类别,
+      职务一级关键词,
+      职务二级关键词,
+      职务三级关键词,
+      具体职务,
+      级别,
+      标志位,
+      level) %>% unique()
+  sender <- set %>% filter(level == "prov") %>% select(姓名)
+  n <- nrow(sender)
+  receiver <- set %>% filter(level == "poliburo") %>% select(姓名)
+  sender <- sender %>% rep(times = nrow(receiver)) %>% unlist() %>% 
+      as.matrix() %>% as.data.frame(row.names = F)
+  receiver <- receiver %>% pull(姓名) %>% rep(each = n) %>% unlist() %>% 
+      as.matrix() %>% as.data.frame(row.names = F)
+  tie.df <- data.frame(sender, receiver)
+  colnames(tie.df)[1] <- "姓名_PL"
+  colnames(tie.df)[2] <- "姓名_PM"
+  
+  set_PL <- set %>% filter(level == "prov")
+  set_PM <- set %>% filter(level == "poliburo")
+
+  tie.df <- left_join(tie.df, set_PL, by = c('姓名_PL' = '姓名')) %>% 
+    left_join(set_PM, by = c('姓名_PM' = '姓名')) %>% 
+    select(
+      姓名_PL, 
+      姓名_PM, 
+      `起始时间（YYYY-MM-DD）.x`, 
+      `终止时间（（YYYY-MM-DD））.x`, 
+      `起始时间（YYYY-MM-DD）.y`, 
+      `终止时间（（YYYY-MM-DD））.y`,
+      地方一级关键词.x, 
+      地方二级关键词.x,
+      地方三级关键词.x,
+      基本大类别.x,
+      基本大类别.y,
+      职务一级关键词.x,
+      职务一级关键词.y,
+      职务二级关键词.x,
+      职务二级关键词.y,
+      职务三级关键词.x,
+      职务三级关键词.y,
+      具体职务.x,
+      具体职务.y,
+      级别.x,
+      级别.y,
+      标志位.x,
+      标志位.y)
+  colnames(tie.df) <- c("姓名_PL", "姓名_PM", "起始时间_PL", "终止时间_PL", "起始时间_PM", "终止时间_PM", "地方一级关键词",	"地方二级关键词",	"地方三级关键词",	"基本大类别_PL", "基本大类别_PM", "职务一级关键词_PL",	"职务一级关键词_PM",	"职务二级关键词_PL",	"职务二级关键词_PM",	"职三二级关键词_PL",	"职务三级关键词_PM", "具体职务_PL", "具体职务_PM", "级别_PL", "级别_PM", "标志位_PL", "标志位_PM")
+  return(tie.df)
+}
+
+wrk <- function(grp_st) {
+  # select only dfs with ties (BOTH PM and PL officials AND >1 unique name)
+  grp_st <- lapply(1:length(grp_st), possible_matches, list = grp_st)
+  # create ties
+  len <- which(!is.na(grp_st)) %>% length()
+  if (len == 0) {
+    return(NULL)
+  }else{
+  st.g <- lapply(1:len, wrk_ties, list = grp_st)
+  # remove duplicated rows
+  len <- st.g %>% length()
+  st.g <- lapply(1:len, function(x, list){list[[x]] %>% unique()}, list = st.g)
+  # remove self-ties
+  no_self <- function(x, list) {
+    list[[x]] %>% filter(姓名_PL != 姓名_PM)
+}
+  st.g <- lapply(1:len, no_self, list = st.g)
+  # overlap
+  st.g <- lapply(1:len, overlap, list = st.g)
+  # merge dfs
+  st.g <- do_call_rbind(st.g)
+  # filter rows with overlap
+  st.g <- st.g %>% filter(Overlap == 1)
+  # remove redundant rows
+  # grp by tie (names)
+  st.g <- split(st.g, with(st.g, interaction(姓名_PL, 姓名_PM)), drop = TRUE)
+  st.g <- lapply(1:length(st.g),
+       function(x){
+         df <- st.g[[x]]
+         a <- df %>% select("姓名_PL", "姓名_PM", "起始时间_PL", "终止时间_PL", "起始时间_PM", "终止时间_PM", "地方一级关键词",	"地方二级关键词",	"地方三级关键词",	"基本大类别_PL", "基本大类别_PM", "职务一级关键词_PL",	"职务一级关键词_PM",	"职务二级关键词_PL",	"职务二级关键词_PM",	"职三二级关键词_PL",	"职务三级关键词_PM", "具体职务_PL", "具体职务_PM", "级别_PL", "级别_PM", "标志位_PL", "标志位_PM") %>% duplicated()
+         if (any(a)) {
+           df[!a,]
+         }else{
+           df
+         }
+       })
+  st.g <- do_call_rbind(st.g)
+  st.g$Overlap <- NULL
+  }
+  return(st.g)
+}
+```
+
+
+```{r ST11 and ST13}
+# st11A
+st11A1 <- df %>% filter(level == "poliburo") %>%
+  filter(基本大类别 == "党委") %>%
+  filter(职务一级关键词 == "党委常委会/政治局") %>%
+  filter(grepl("书记", 具体职务))
+st11A2a <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "党委") %>%
+  filter(职务一级关键词 == "党委常委会/政治局") %>%
+  filter(grepl("秘书长", 具体职务))
+st11A2b <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "党委") %>%
+  filter(grepl("办公", 职务一级关键词) |
+         grepl("秘书", 职务一级关键词) |
+         grepl("政策研究", 职务一级关键词) |
+         grepl("政研", 职务一级关键词))
+stA <- rbind(st11A1, st11A2a, st11A2b)
+# st11B
+st11B1 <- df %>% filter(level == "poliburo") %>%
+  filter(基本大类别 == "共青团") %>%
+  filter(职务一级关键词 == "共青团委") %>%
+  filter(grepl("书记", 具体职务))
+st11B2a <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "共青团") %>%
+  filter(职务一级关键词 == "共青团委") %>%
+  filter(grepl("秘书", 具体职务))
+st11B2b <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "共青团") %>%
+  filter(
+    grepl("办公", 职务一级关键词) |
+    grepl("秘书", 职务一级关键词) |
+    grepl("政策研究", 职务一级关键词)
+    )
+stB <- rbind(st11B1, st11B2a, st11B2b)
+# st11C
+st11C1 <- df %>% filter(level == "poliburo") %>%
+  filter(基本大类别 == "党委") %>%
+  filter(
+    grepl("部长", 具体职务) |
+    grepl("主任", 具体职务) |
+    grepl("组长", 具体职务) |
+    grepl("书记", 具体职务))
+st11C2 <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "党委") %>%
+  filter(
+    grepl("办公", 职务二级关键词) |
+    grepl("秘书", 职务二级关键词) |
+    grepl("研究", 职务二级关键词) |
+    grepl("办公", 职务三级关键词) |
+    grepl("秘书", 职务三级关键词) |
+    grepl("研究", 职务三级关键词)) %>%
+  filter(
+    grepl("办公", 具体职务) |
+    grepl("秘书", 具体职务) |
+    grepl("研究", 具体职务))
+stC <- rbind(st11C1, st11C2)
+# separate st11 and st13
+st13A <- stA %>% filter(grepl("副", 具体职务))
+st13B <- stB %>% filter(grepl("副", 具体职务))
+st13C <- stC %>% filter(grepl("副", 具体职务))
+st11A <- stA %>% filter(!grepl("副", 具体职务))
+st11B <- stB %>% filter(!grepl("副", 具体职务))
+st11C <- stC %>% filter(!grepl("副", 具体职务))
+## st11
+# grp A by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_st11A <- st11A %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# grp B by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_st11B <- st11B %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# grp C by 地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词
+grp_st11C <- st11C %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词) %>% group_split()
+# create ties
+st11A.g <- wrk(grp_st11A)
+st11B.g <- wrk(grp_st11B)
+st11C.g <- wrk(grp_st11C)
+# join
+st11.g <- rbind(st11A.g, st11B.g, st11C.g)
+# add tie type
+st11.g$Tie <- "ST11"
+## st13
+# grp A by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_st13A <- st13A %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# grp B by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_st13B <- st13B %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# grp C by 地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词
+grp_st13C <- st13C %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词) %>% group_split()
+# create ties
+st13A.g <- wrk(grp_st13A)
+st13B.g <- wrk(grp_st13B) ############ NO TIES ###############
+st13C.g <- wrk(grp_st13C)
+# join
+st13.g <- rbind(st13A.g, st13B.g, st13C.g)
+# add tie type
+st13.g$Tie <- "ST13"
+
+st11.g
+st13.g
+```
+
+
+```{r ST12 and ST14}
+# stA
+stA1 <- df %>% filter(level == "poliburo") %>%
+  filter(基本大类别 == "政府/国务院") %>%
+  filter(职务一级关键词 == "政府/国务院（综合）") %>%
+  filter(
+    grepl("总理", 具体职务) |
+    grepl("省长", 具体职务) |
+    grepl("市长", 具体职务) |
+    grepl("县长", 具体职务) |
+    grepl("主任", 具体职务) |
+    grepl("主席", 具体职务) |
+    grepl("州长", 具体职务) |
+    grepl("区长", 具体职务) |
+    grepl("专员", 具体职务))
+stA2a <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "政府/国务院") %>%
+  filter(职务一级关键词 == "政府/国务院（综合）") %>%
+  filter(
+    grepl("秘书", 具体职务) |
+    grepl("助理", 具体职务))
+stA2b <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "政府/国务院") %>%
+  filter(
+    grepl("办公", 职务一级关键词) |
+    grepl("秘书", 职务一级关键词) |
+    grepl("研究", 职务一级关键词))
+stA <- rbind(stA1, stA2a, stA2b)
+# stB
+stB1 <- df %>% filter(level == "poliburo") %>%
+  filter(基本大类别 == "政府/国务院") %>%
+  filter(职务一级关键词 == "革命委员会") %>%
+  filter(grepl("主任", 具体职务))
+stB2 <- stB1 <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "政府/国务院") %>%
+  filter(
+    grepl("办公", 职务一级关键词) |
+    grepl("秘书", 职务一级关键词) |
+    grepl("研究", 职务一级关键词))
+stB <- rbind(stB1, stB2)
+# stC
+stC1 <- df %>% filter(level == "poliburo") %>%
+  filter(基本大类别 == "政府/国务院") %>%
+  filter(
+    grepl("部长", 具体职务) |
+    grepl("主任", 具体职务) |
+    grepl("组长", 具体职务) |
+    grepl("厅长", 具体职务) |
+    grepl("局长”", 具体职务) |
+    grepl("处长", 具体职务) |
+    grepl("司长", 具体职务) |
+    grepl("科长", 具体职务)) %>%
+  filter(
+    grepl("办公", 具体职务) |
+    grepl("秘书", 具体职务) |
+    grepl("研究", 具体职务))
+stC2 <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "政府/国务院") %>%
+  filter(
+    grepl("办公", 职务二级关键词) |
+    grepl("秘书", 职务二级关键词) |
+    grepl("研究", 职务二级关键词) |
+    grepl("办公", 职务三级关键词) |
+    grepl("秘书", 职务三级关键词) |
+    grepl("研究", 职务三级关键词))
+stC <- rbind(stC1, stC2)
+# separate st12 and st14
+st14A <- stA %>% filter(grepl("副", 具体职务))
+st14B <- stB %>% filter(grepl("副", 具体职务))
+st14C <- stC %>% filter(grepl("副", 具体职务))
+st12A <- stA %>% filter(!grepl("副", 具体职务))
+st12B <- stB %>% filter(!grepl("副", 具体职务))
+st12C <- stC %>% filter(!grepl("副", 具体职务))
+## st12
+# grp A by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_st12A <- st12A %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# grp B by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_st12B <- st12B %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# grp C by 地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词
+grp_st12C <- st12C %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词) %>% group_split()
+# create ties
+st12A.g <- wrk(grp_st12A)
+st12B.g <- wrk(grp_st12B) ############ NO TIES ##############
+st12C.g <- wrk(grp_st12C)
+# join
+st12.g <- rbind(st12A.g, st12B.g, st12C.g)
+# add tie type
+st12.g$Tie <- "ST12"
+## st14
+# grp A by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_st14A <- st14A %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# grp B by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_st14B <- st14B %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# grp C by 地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词
+grp_st14C <- st14C %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词) %>% group_split()
+# create ties
+st14A.g <- wrk(grp_st14A)
+st14B.g <- wrk(grp_st14B) ############ NO TIES ##############
+st14C.g <- wrk(grp_st14C)
+# join
+st14.g <- rbind(st14A.g, st14B.g, st14C.g)
+# add tie type
+st14.g$Tie <- "ST14"
+
+st12.g
+st14.g
+```
+
+
+```{r ST15}
+stA <- df %>% filter(level == "poliburo") %>% 
+  filter(
+    基本大类别 != "政府/国务院" &
+    基本大类别 != "共青团" &
+    基本大类别 != "党委")
+stB <- df %>% filter(level == "prov") %>% 
+  filter(
+    基本大类别 != "政府/国务院" &
+    基本大类别 != "共青团" &
+    基本大类别 != "党委") %>% 
+  filter(
+    grepl("办公", 职务二级关键词) |
+    grepl("秘书", 职务二级关键词) |
+    grepl("研究", 职务二级关键词) |
+    grepl("助理", 职务二级关键词) |
+    grepl("办公", 职务三级关键词) |
+    grepl("秘书", 职务三级关键词) |
+    grepl("研究", 职务三级关键词) |
+    grepl("助理", 职务三级关键词) |
+    grepl("办公", 具体职务) |
+    grepl("秘书", 具体职务) |
+    grepl("研究", 具体职务) |
+    grepl("助理", 具体职务) 
+  )
+st15 <- rbind(stA, stB)
+# grp by 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别, 职务一级关键词
+grp_st15 <- st15 %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别, 职务一级关键词) %>% group_split()
+# create ties
+st15.g <- wrk(grp_st15)
+# add tie type
+st15.g$Tie <- "ST15"
+
+st15.g
+```
+
+
+```{r ST21}
+st21 <- df %>% filter(
+  职务一级关键词 == "党委常委会/政治局" |
+  职务一级关键词 == "政府/国务院（综合）" |
+  职务一级关键词 == "组织部" |
+  职务一级关键词 == "纪律检查委员" |
+  职务一级关键词 == "政法委员会" |
+  职务一级关键词 == "宣传部" |
+  职务一级关键词 == "监察委员会") %>% 
+  filter(is.na(职务二级关键词) & is.na(职务三级关键词)) %>%
+  filter(
+    grepl("书记", 具体职务) |
+    grepl("省长", 具体职务) |
+    grepl("市长", 具体职务) |
+    grepl("县长", 具体职务) |
+    grepl("州长", 具体职务) |
+    grepl("区长", 具体职务) |
+    grepl("主任", 具体职务) |
+    grepl("部长", 具体职务) |
+    grepl("秘书长", 具体职务) |
+    grepl("常委", 具体职务) |
+    grepl("常务", 具体职务) |
+    grepl("专职", 具体职务)) %>%
+  filter(地方一级关键词 != "中央") %>%
+  filter(!grepl("政治局常委", 具体职务))
+# grp by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_st21 <- st21 %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# create ties
+st21.g <- wrk(grp_st21)
+# add tie type
+st21.g$Tie <- "ST21"
+
+st21.g
+```
+
+
+```{r ST22}
+st22 <- df %>% filter(
+  (基本大类别 == "党委" & 职务一级关键词 == "党委常委会/政治局") |
+  (基本大类别 == "共青团" & 职务一级关键词 == "共青团委")
+    ) %>%
+  filter(grepl("书记", 具体职务)) 
+# grp by 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别, 职务一级关键词
+grp_st22 <- st22 %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别, 职务一级关键词) %>% group_split()
+# create ties
+st22.g <- wrk(grp_st22)
+# add tie type
+st22.g$Tie <- "ST22"
+
+st22.g
+```
+
+```{r ST23}
+st23 <- df %>% filter(基本大类别 == "政府/国务院") %>%
+  filter(
+    职务一级关键词 == "政府/国务院（综合）"  |
+    (职务一级关键词 == "革命委员会" & grepl("主任", 具体职务))
+  )
+# grp by 地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词
+grp_st23 <- st23 %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词) %>% group_split()
+# create ties
+st23.g <- wrk(grp_st23)
+# add tie type
+st23.g$Tie <- "ST23"
+
+st23.g
+```
+
+
+
+```{r ST24}
+stA1 <- df %>% filter(level == "poliburo") %>% 
+  filter(grepl("书记", 具体职务)) %>%
+  filter(职务一级关键词 == "党委常委会/政治局" & 基本大类别 == "党委")
+stA2 <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "党委") %>%
+  filter(
+    !grepl("党委常委会/政治局", 职务一级关键词) |
+    !grepl("顾问委员会", 职务一级关键词))
+stA <- rbind(stA1, stA2)
+stB1 <- df %>% filter(level == "poliburo") %>%
+  filter(基本大类别 == "共青团") %>%
+  filter(职务一级关键词 == "共青团委") %>%
+  filter(grepl("书记", 具体职务))
+stB2 <- df %>% filter(level == "prov") %>% 
+  filter(基本大类别 == "共青团") %>%
+  filter(grepl("共青团委", 职务一级关键词)) %>%
+  filter(
+    !grepl("党委常委会/政治局", 职务一级关键词) |
+    !grepl("顾问委员会", 职务一级关键词))
+stB <- rbind(stB1, stB2)
+
+# grp by 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别
+grp_st24A <- stA %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+grp_st24B <- stB %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# create ties
+st24A.g <- wrk(grp_st24A)
+st24B.g <- wrk(grp_st24B)
+# join
+st24.g <- rbind(st24A.g, st24B.g)
+# add tie type
+st24.g$Tie <- "ST24"
+
+st24.g
+```
+
+
+```{r ST25}
+stA1 <- df %>% filter(level == "poliburo") %>%
+  filter(
+    grepl("省长", 具体职务) |
+    grepl("市长", 具体职务) |
+    grepl("县长", 具体职务) |
+    grepl("乡长", 具体职务) |
+    grepl("州长", 具体职务) |
+    grepl("主席", 具体职务) |
+    grepl("区长", 具体职务) |
+    grepl("专员", 具体职务)) %>%
+  filter(职务一级关键词 == "政府/国务院（综合）") %>%
+  filter(基本大类别 == "政府/国务院")
+stA2 <- df %>% filter(level == "prov") %>%
+  filter(!grepl("政府/国务院（综合）", 职务一级关键词)) %>% 
+  filter(基本大类别 == "政府/国务院")
+stA <- rbind(stA1, stA2)
+stB1 <- df %>% filter(level == "poliburo") %>%
+  filter(职务一级关键词 == "革命委员会") %>%
+  filter(基本大类别 == "政府/国务院") %>%
+  filter(grepl("主任", 具体职务))
+stB2 <- df %>% filter(level == "prov") %>%
+  filter(基本大类别 == "政府/国务院") %>%
+  filter(!grepl("革命委员会", 职务一级关键词))
+stB <- rbind(stB1, stB2)
+# grp by 地方一级关键词, 地方二级关键词, 地方三级关键词
+grp_stA <- stA %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+grp_stB <- stB %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# create ties
+st25A.g <- wrk(grp_stA)
+st25B.g <- wrk(grp_stB)
+# join
+st25.g <- rbind(st25A.g, st25B.g)
+# add tie type
+st25.g$Tie <- "ST25"
+
+st25.g
+```
+
+
+```{r ST26/27}
+st26 <- df %>% 
+  filter(
+  !(
+    grepl("革命委员会", 职务一级关键词) |
+    grepl("政府/国务院（综合）", 职务一级关键词) |  
+    grepl("党委常委会/政治局", 职务一级关键词))) %>%
+  filter(!grepl("学校", 基本大类别)) %>%
+  filter(!grepl("人大", 基本大类别))
+# grp by 地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词, 基本大类别
+grp_st26 <- st26 %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词, 基本大类别) %>% group_split()
+# create ties
+st26.g <- wrk(grp_st26)
+# add tie type
+st26.g$Tie <- "ST26"
+
+st26.g
+```
+
+
+```{r ST31}
+
+```
+
+
+```{r ST32}
+
+```
+
+
+```{r ST33}
+
+```
+
+
+```{r ST34}
+
+```
+
+
+```{r}
+st.g <- rbind(st11.g, st13.g, st12.g, st14.g, st15.g, st21.g, st22.g, st23.g, st24.g, st25.g, st26.g)
+write.csv(st.g, "~/Desktop/CCP_Ties/Social_Ties_V3.csv")
+```
+
+
+
+
+
+
+
+

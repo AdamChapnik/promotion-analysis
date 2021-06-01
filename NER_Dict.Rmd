@@ -1,0 +1,286 @@
+---
+title: "NER_Dictionary"
+author: "Adam Chapnik"
+date: "3/10/2021"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(dplyr)
+library(stringr)
+library(rtweet)
+
+df <- read_csv("~/Desktop/CCP_Resumes/job title names.csv")
+colnames(df) <- c("Title", "Deputy_")
+df <- df %>% select(Title, Deputy_)
+dict_title <- df
+
+full_df <- read_csv("~/Desktop/CCP_Resumes/after92bio.csv")
+full_df <- full_df %>% filter(!is.na(experience)) # remove rows with NA bio 
+```
+
+Extract titles from segment
+
+```{r}
+segment <- full_df %>% pull(experience) # vec of bio segments
+name <- full_df %>% pull(name) # vec of bio segments
+mat <- matrix(c(name, segment), ncol = 2) # matrix for operations
+
+## check for dictionary matches in one segment, output matches
+title_match <- function(x, ent) { # ent (entity) = 1 row, 2 col (name, string) matrix 
+
+  seg <- ent[2] # select segment
+  pattern1 <- dict_title[x, 1] %>% pull(Title) # select dictionary entry
+  pattern2 <- dict_title[x, 2] %>% pull(Deputy_) # select dictionary entry (could be NA)
+  match <- str_detect(seg, pattern1) # whether BASIC pattern detected
+  # if basic dict entry matched to substring
+  if (match) {
+    # AND if the deputy dict entry exists
+    if (!is.na(pattern2)) {
+      
+      match2 <- str_detect(seg, pattern2) # whether DEPUTY pattern detected
+      # if deputy dict entry matches substring
+      if (match2) {
+        
+        result <- pattern2 # output matched DEPUTY pattern
+        return(result)
+       # if deputy dict entry does NOT match 
+      }else{
+        
+        result <- pattern1 # output matched BASIC pattern
+        return(result)
+        
+      }
+      # if deputy dict entry does NOT exist
+    }else{
+      
+      result <- pattern1 # output matched BASIC pattern
+      return(result)
+      
+    }
+    # if basic dict entry does NOT match
+  }else{
+    
+    return(NA)
+  
+  }
+}
+ 
+
+seg_extract <- function(ent) {
+  
+  a <- nrow(dict_title) 
+  matches <- sapply(1:a, title_match, ent) # vector of dict matches and NAs
+  matches <- matches[!is.na(matches)] # list of matched titles (no NAs)
+  return(matches)
+}   
+
+# index through all segments
+NER_titles <- function(x) {
+  result <- seg_extract(mat[x,])
+  return(result)
+}
+
+segs <- nrow(full_df)
+result <- lapply(1:segs, NER_titles)
+
+result[[10]]
+```
+
+
+
+```{r}
+# remove substring vector 
+remove_substrings <- function(string, list) {
+  for (i in list) {
+    string <- str_remove(string, i)
+  }
+  return(string)
+}
+
+
+## remove matches from original string
+seg_update <- function(ent) { 
+  
+  name <- ent[1] # name
+  seg <- ent[2] # segment
+  
+  a <- length(dict_title) 
+  matches <- sapply(1:a, title_match, ent) # vector of dict matches and NAs
+  matches <- matches[!is.na(matches)] # list of matched titles (no NAs)
+  
+  if (length(matches) > 0) {
+    
+    updated <- remove_substrings(seg, matches) 
+    result <- c(name, seg, updated, matches)
+    result <- t(result)
+    result <- data.frame(result)
+    return(result)
+    
+  }else{
+    
+    result <- c(name, seg)
+    result <- t(result)
+    result <- data.frame(result)
+    return(result)
+    
+  }
+}
+
+# index through all segments
+NER_titles <- function(x) {
+  result <- seg_update(mat[x,])
+  return(result)
+}
+
+segs <- nrow(full_df)
+result <- lapply(1:segs, NER_titles)
+
+# pad empty columns with NAs to rbind
+size <- function(x, df) {
+  ncol <- ncol(df[[x]])
+  return(ncol)
+}
+
+pad <- function(x, df, n) {
+  
+  sizes <- sapply(1:n, size, df = df)
+  n <- max(sizes)
+
+  if (sizes[x] == n){
+    return(df[[x]])
+  }else{
+    add <- c((sizes[x]+1):n)
+    add <- paste0("X",add)
+    df[[x]][add] <- NA
+    return(df[[x]])
+  }
+}
+
+dfs <- lapply(1:segs, pad, df = result, n = segs)
+# join rows into single df
+df <- do_call_rbind(dfs)
+colnames(df)[1] <- "Name"
+colnames(df)[2] <- "Full_Seg"
+colnames(df)[3] <- "Updated_Seg"
+
+fix_na <- function(x){
+  
+  original <- df %>% pull(Full_Seg)
+  updated <- df %>% pull(Updated_Seg)
+
+  if (is.na(updated[x])) {
+    return(original[x])
+  }else{
+    return(updated[x])
+  }
+}
+df$Updated_Seg <- sapply(1:segs, fix_na)
+
+write.csv(df, "~/Desktop/Dict_Titles.csv")
+```
+
+
+#PYTHON# 
+Spacy NER...
+
+```{r}
+df_ner <- read_csv("~/Desktop/NER_Version_4.csv")
+df_ner <- df_ner[!is.na(df_ner$`2`),] # remove empty rows
+```
+
+Check if matched title is contained within other named entities -- if so, remove substring and update named entities. Then add matched titles to row.
+
+```{r}
+select_NEs <- function(x) {
+  a <- seq(1, nrow(df_ner), 2) # indices of rows in df_ner
+  ne <- df_ner[a[x] + 1, -c(1,2)] # select named entities for segment x
+  ne <- as.vector(as.matrix(ne)) # convert NEs to vector
+  ne <- ne[!is.na(ne)] # remove NAs from vector
+  return(ne)
+}
+
+update_NEs <- function(x) {
+  
+  nes <- select_NEs(x) # vector of NEs
+  titles <- result[[x]] # vector of titles
+  
+  test <- !is.logical(titles) 
+  # if titles exist
+  if (test) {
+    # loop through titles vector, compare to NE vector
+    for (i in titles) {
+      updated <- str_remove(nes, i) # remove matched title substrings
+      updated <- as.vector(updated) # matrix -> vector
+    }
+    result <- c(updated, titles) ## SPACY NER *THEN* TITLES ##
+    return(result)
+  }else{
+    return(nes)
+  }
+}
+
+a <- length(result)
+NE_list <- sapply(1:a, update_NEs)
+```
+
+First convert to df for transfer to Python.
+
+```{r}
+join_ner_dfs <- function(x){
+
+  a <- seq(1, nrow(df_ner), 2)
+  # entity labels from Spacy NER
+  ner_lab <- df_ner[a[x], -c(1,2)] 
+  ner_lab <- as.vector(as.matrix(ner_lab))
+  ner_lab <- ner_lab[!is.na(ner_lab)]
+  
+  NEs <- NE_list[[x]] # named entities
+  full <- length(NEs) # number of total named entities
+  part <- length(ner_lab) # number of Spacy NEs
+  
+  labs <- c("Name", "Segment") # basic column labels
+  
+  name <- df_ner[a[x] + 1, 1]
+  name <- name %>% pull("0") # name
+
+  seg <- df_ner[a[x] + 1, 2]
+  seg <- seg %>% pull("1") # segment
+  
+  # get a vector of the titles if the number of Spacy NEs is less than than the total number of NEs
+  if (full > part) {
+    
+    start <- full - part + 1 # first "TITL" index
+    titles <- NEs[start:full] # vector of TITLs
+    titl_lab <- rep("TITL", times = length(titles)) # "TITL" labels
+    full_labs <- c(labs, ner_lab, titl_lab) # labels for NEs
+    row <- c(name, seg, NEs) # row entries
+    mat <- rbind(full_labs, row) # create 2 row matrix of labels and entries
+    result <- data.frame(mat)
+    return(result)
+    
+  }else{
+    
+    full_labs <- c(labs, ner_lab) # labels for NEs
+    row <- c(name, seg, NEs) # row entries
+    mat <- rbind(full_labs, row) # create 2 row matrix of labels and entries
+    result <- data.frame(mat)
+    return(result)
+    
+  }
+}
+
+result <- lapply(1:length(NE_list), join_ner_dfs)
+result[[3]][2,6]
+
+dfs <- lapply(1:length(NE_list), pad, df = result, n = length(NE_list))
+df <- do_call_rbind(dfs)
+write.csv(df, "~/Desktop/Complete_NER_2.csv")
+```
+
+Use these lists for dependency matching. 
+
+
+
+
