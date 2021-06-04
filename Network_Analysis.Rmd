@@ -811,8 +811,7 @@ st11C2 <- df %>% filter(level == "prov") %>%
     grepl("研究", 职务二级关键词) |
     grepl("办公", 职务三级关键词) |
     grepl("秘书", 职务三级关键词) |
-    grepl("研究", 职务三级关键词)) %>%
-  filter(
+    grepl("研究", 职务三级关键词)|
     grepl("办公", 具体职务) |
     grepl("秘书", 具体职务) |
     grepl("研究", 具体职务))
@@ -911,8 +910,7 @@ stC1 <- df %>% filter(level == "poliburo") %>%
     grepl("局长”", 具体职务) |
     grepl("处长", 具体职务) |
     grepl("司长", 具体职务) |
-    grepl("科长", 具体职务)) %>%
-  filter(
+    grepl("科长", 具体职务) |
     grepl("办公", 具体职务) |
     grepl("秘书", 具体职务) |
     grepl("研究", 具体职务))
@@ -1092,10 +1090,7 @@ stB1 <- df %>% filter(level == "poliburo") %>%
   filter(grepl("书记", 具体职务))
 stB2 <- df %>% filter(level == "prov") %>% 
   filter(基本大类别 == "共青团") %>%
-  filter(grepl("共青团委", 职务一级关键词)) %>%
-  filter(
-    !grepl("党委常委会/政治局", 职务一级关键词) |
-    !grepl("顾问委员会", 职务一级关键词))
+  filter(grepl("共青团委", 职务一级关键词))
 stB <- rbind(stB1, stB2)
 
 # grp by 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别
@@ -1159,9 +1154,7 @@ st26 <- df %>%
   !(
     grepl("革命委员会", 职务一级关键词) |
     grepl("政府/国务院（综合）", 职务一级关键词) |  
-    grepl("党委常委会/政治局", 职务一级关键词))) %>%
-  filter(!grepl("学校", 基本大类别)) %>%
-  filter(!grepl("人大", 基本大类别))
+    grepl("党委常委会/政治局", 职务一级关键词))) 
 # grp by 地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词, 基本大类别
 grp_st26 <- st26 %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词, 职务一级关键词, 基本大类别) %>% group_split()
 # create ties
