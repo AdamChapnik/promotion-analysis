@@ -1190,7 +1190,166 @@ st26.g
 st.g <- rbind(st11.g, st13.g, st12.g, st14.g, st15.g, st21.g, st22.g, st23.g, st24.g, st25.g, st26.g)
 write.csv(st.g, "~/Desktop/CCP_Ties/Social_Ties_V3.csv")
 ```
+# Narrow Down Ties
 
+```{r warning=FALSE, include=FALSE, PL-PM STs message=FALSE}
+prov.df <- read_csv("~/Desktop/CCP_Resumes/province_1978_2020v2.csv")
+polit.df <- read_csv("~/Desktop/poliburoV0527\ /names\ by\ year-Revised.csv")
+
+# clean
+polit.df$Date <- as.Date(polit.df$Date, format = '%m/%d/%Y') # convert to date var
+prov.df <- prov.df %>% select(year, leader) # select yr, leader name
+prov.df <- prov.df[-1,]
+polit.df <- polit.df[rowSums(is.na(polit.df)) != ncol(polit.df),] # drop rows w all NAs
+
+## wrangle prov df
+prov.df_grps <- prov.df %>% group_by(leader) %>% group_split()
+reformat_PL <- function(x) {
+  i <- prov.df_grps[[x]]
+  a <- i %>% pull(year) %>% sort() %>% first()
+  b <- i %>% pull(year) %>% sort() %>% last()
+  period <- a:b # vector of expected yr range in increasing order
+  actual <- i %>% pull(year) %>% sort() # vector of actual year range
+  if (period == actual) {
+    start <- paste0("1/1/", a) 
+    end <- paste0("12/31/", b)
+    name <- i$leader[1]
+    labels <- c("start", "end", "name")
+    result <- c(start, end, name) %>% matrix(ncol = 3) %>% as.data.frame()
+    colnames(result) <- labels
+  }else{
+    result <- i
+    result$check <- "check"
+  }
+  return(result)
+}
+
+prov.df_grps2 <- lapply(1:length(prov.df_grps), reformat_PL)
+prov.df <- do_call_rbind(prov.df_grps2)
+# clean dates
+prov.df$start <- as.Date(prov.df$start, format = '%m/%d/%Y') 
+prov.df$end <- as.Date(prov.df$end, format = '%m/%d/%Y') 
+
+## wrangle polit df
+reformat_PM <- function(x) {
+  i <- polit.df[x,]
+  i <- Filter(function(x)!all(is.na(x)), i) # drop empty columns
+  start <- i$Date
+  i <- i[,-1] # remove date
+  result <- t(i) %>% data.frame() # rotate
+  result$start <- start 
+  if (x < nrow(polit.df)) {
+    end <- (polit.df[x + 1, 1] - 1) %>% pull(Date) # following term start minus one day
+  }else{
+    end <- Sys.time() %>% as.Date() # today 
+  }
+  result$end <- end
+  colnames(result) <- c("name", "start", "end")
+  result <- result %>% select(start, end, name)
+  return(result)
+}
+polit.df_grps <- lapply(1:nrow(polit.df), reformat_PM)
+polit.df <- do_call_rbind(polit.df_grps)
+# clean start/end dates
+polit.df_grps2 <- polit.df %>% group_by(name) %>% group_split() 
+
+reformat_PM2 <- function(x) {
+  i <- polit.df_grps2[[x]]
+  
+  ## test for gaps in term
+  # real days served
+  a <- i %>% pull(start)
+  b <- i %>% pull(end)
+  real <- (difftime(b, a, units = "days") + 1) %>% sum() %>% as.vector()
+  # expected days served
+  A <- i %>% pull(start) %>% head(1)
+  B <- i %>% pull(end) %>% tail(1)
+  expected <- (difftime(B, A, units = "days") + 1) %>% sum() %>% as.vector()
+  
+  if (real == expected) {
+    start <- i %>% select(start) %>% head(1)
+    end <- i %>% select(end) %>% tail(1)
+    name <- i %>% select(name) %>% head(1)
+    result <- cbind(start, end, name)
+  }else{
+    result <- i
+    result$check <- "check"
+  }
+  return(result)
+}
+polit.df_grps3 <- lapply(1:length(polit.df_grps2), reformat_PM2) # check in case gaps in any cases 
+polit.df <- do_call_rbind(polit.df_grps3)
+
+## create PL-PM ties based on overlap
+prov.df$level <- "prov"
+polit.df$level <- "polit"
+
+# join dfs
+st.df <- rbind(prov.df, polit.df)
+# create ties
+sender <- st.df %>% filter(level == "prov") %>% select(name)
+n <- nrow(sender)
+receiver <- st.df %>% filter(level == "polit") %>% select(name)
+sender <- sender %>% rep(times = nrow(receiver)) %>% unlist() %>% 
+  as.matrix() %>% as.data.frame(row.names = F)
+receiver <- receiver %>% pull(name) %>% rep(each = n) %>% unlist() %>% 
+  as.matrix() %>% as.data.frame(row.names = F)
+tie.df <- data.frame(sender, receiver)
+colnames(tie.df)[1] <- "姓名_PL"
+colnames(tie.df)[2] <- "姓名_PM"
+
+set_PL <- st.df %>% filter(level == "prov")
+set_PM <- st.df %>% filter(level == "polit")
+
+tie.df <- left_join(tie.df, set_PL, by = c('姓名_PL' = 'name')) %>% 
+  left_join(set_PM, by = c('姓名_PM' = 'name')) %>% 
+  select(
+    姓名_PL, 
+    姓名_PM,       
+    start.x, 
+    end.x, 
+    start.y,      
+    end.y)
+# remove self-ties
+tie.df <- tie.df %>% filter(姓名_PL != 姓名_PM)
+# reduce to overlapping tenures
+df <- tie.df
+df$Overlap <- ""
+for (i in 1:length(df$Overlap)) {
+  if (df$start.x[i] == df$start.y[i]) {
+    df$Overlap[i] = 1
+  }else{
+    if (df$start.x[i] < df$start.y[i] & df$end.x[i] > df$start.y[i]) {
+      df$Overlap[i] = 1
+    }else{
+      if (df$start.x[i] > df$start.y[i] & df$start.x[i] < df$end.y[i]) {
+        df$Overlap[i] = 1
+      }else{
+        df$Overlap[i] = 0
+      }
+    }
+  } 
+}
+df <- df %>% filter(Overlap == 1) %>% select(姓名_PL, 姓名_PM) # filter only overlapping
+df <- df %>% unique() # remove duplicates
+
+## merge ST files
+df <- inner_join(st.g, df, by = c("姓名_PL", "姓名_PM"))
+# export for manual revision
+write.csv(df, "~/Desktop/CCP_Ties/Narrowed_STs_V2.csv")
+# import revised ST file
+df <- read_csv("~/Desktop/CCP_Ties/Narrowed_STs_V2.csv")
+```
+
+
+```{r}
+## add STs to regression file
+prov.df <- read_csv("~/Desktop/CCP_Resumes/province_1978_2020v2.csv")
+prov.df <- prov.df[-1,]
+
+# wrangle ST file to annual ST
+
+```
 
 
 
