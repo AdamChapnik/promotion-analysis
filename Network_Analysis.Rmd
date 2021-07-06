@@ -1223,7 +1223,7 @@ stB3<- df %>% filter(level == "prov") %>%
     grepl("市长", 具体职务) |
     grepl("书记）", 具体职务)
   )%>% 
-  filter(地区级别 == "副省级城市") ##remember to include the column 地区级别 in the df
+  filter(grepl("副省级城市", 地区级别) ) ##remember to include the column 地区级别 in the df
 
 stB <- rbind(stB1, stB2, stB3)
 
