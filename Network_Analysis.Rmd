@@ -1176,7 +1176,6 @@ stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     grepl("政治局常委", 具体职务)
   )
-
 stB1 <- df %>% filter(level == "prov") %>%
   filter(
     grepl("副书记", 具体职务) |
@@ -1194,9 +1193,7 @@ stB1 <- df %>% filter(level == "prov") %>%
     grepl("政府/国务院（综合）", 职务一级关键词) |
     grepl("党委常委会/政治局", 职务一级关键词) 
   )
-  
-
-stB2<- df %>% filter(level == "prov") %>%
+stB2 <- df %>% filter(level == "prov") %>%
   filter(
     grepl("党委", 基本大类别) |
     grepl("政府/国务院（综合）", 基本大类别) |
@@ -1210,33 +1207,27 @@ stB2<- df %>% filter(level == "prov") %>%
     grepl("政府/国务院（综合)", 职务一级关键词) |
     grepl("党委常委会/政治局", 职务一级关键词) )
   ) %>%
-  filter(is.na('职务二级关键词') & is.na('职务三级关键词'))
-
-stB3<- df %>% filter(level == "prov") %>%
+  filter(is.na(职务二级关键词) & is.na(职务三级关键词))
+stB3 <- df %>% filter(level == "prov") %>%
   filter(
     grepl("党委常委会/政治局", 职务一级关键词) |
     grepl("政府/国务院（综合）", 职务一级关键词) 
   ) %>%
-  filter(is.na('职务二级关键词') & is.na('职务三级关键词')) %>%
+  filter(is.na(职务二级关键词) & is.na(职务三级关键词)) %>%
   filter(
     grepl("市长", 具体职务) |
-    grepl("书记）", 具体职务)
-  )%>% 
-  filter(grepl("副省级城市", 地区级别) ) ##remember to include the column 地区级别 in the df
-
+    grepl("书记", 具体职务)
+  ) %>% 
+  filter(grepl("副省级城市", 地区级别) ) 
 stB <- rbind(stB1, stB2, stB3)
-
-# grp by 地方一级关键词, 地方二级关键词, 地方三级关键词
-grp_stA <- stA %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
-grp_stB <- stB %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# grp 
+grp_st31 <- vector("list", 1)
+grp_st31[[1]] <- rbind(stA, stB)
+grp_st31[[1]]
 # create ties
-st31A.g <- wrk(grp_stA)
-st32B.g <- wrk(grp_stB)
-# join
-st31.g <- rbind(st31A.g, st31B.g)
+st31.g <- wrk(grp_st31)
 # add tie type
 st31.g$Tie <- "ST31"
-
 st31.g
 ```
 
