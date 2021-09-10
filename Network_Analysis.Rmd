@@ -1274,7 +1274,11 @@ stB <- df %>% filter(level == "prov") %>%
 # grp by 地方一级关键词
 
 grp_st321A <- vector ("list", 1)
-grp_st321A[[1]] <- rbind(stA, stB)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词) %>% group_split
+
+grp_st321A[[1]] <- stbind
 
 # create ties
 st321A.g <- wrk(grp_st321A)
@@ -1326,7 +1330,11 @@ stB <- df %>% filter(level == "prov") %>%
 
 
 grp_st321B <- vector ("list", 1)
-grp_st321B[[1]] <- rbinb(stA, stB)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词) %>% group_split
+
+grp_st321B[[1]] <- stbind 
 
 # create ties
 st321B.g <- wrk(grp_st321B)
@@ -1389,7 +1397,11 @@ stB <- df %>% filter(level == "prov") %>%
 
 
 grp_st322A <- vector ("list", 1)
-grp_st322A[[1]] <- rbinb(stA, stB)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词) %>% group_split
+
+grp_st322A[[1]] <- stbind
 
 # create ties
 st322A.g <- wrk(grp_st322A)
@@ -1451,7 +1463,11 @@ stB <- df %>% filter(level == "prov") %>%
   )
 
 grp_st322B <- vector ("list", 1)
-grp_st322B[[1]] <- rbinb(stA, stB)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词) %>% group_split
+
+grp_st322B[[1]] <- stbind
 
 # create ties
 st322B.g <- wrk(grp_st322B)
@@ -1502,7 +1518,11 @@ stB <- df %>% filter(level == "prov") %>%
   )
 
 grp_st323A <- vector ("list", 1)
-grp_st323A[[1]] <- rbinb(stA, stB)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词) %>% group_split
+
+grp_st323A[[1]] <- stbind
 
 # create ties
 st323A.g <- wrk(grp_st323A)
@@ -1552,7 +1572,11 @@ stB <- df %>% filter(level == "prov") %>%
   )
 
 grp_st323B <- vector ("list", 1)
-grp_st323B[[1]] <- rbinb(stA, stB)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词) %>% group_split
+
+grp_st323B[[1]] <- stbind
 
 # create ties
 st323B.g <- wrk(grp_st323B)
