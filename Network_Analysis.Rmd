@@ -1541,7 +1541,7 @@ stA <-  df %>% filter(level == "poliburo")%>%
   filter (
     职务一级关键词=="党委常委会/政治局")%>%
   filter(!(grepl("非常委", 具体职务))) %>%
-  filter(is.na(地方二级关键词) 
+  filter(is.na(地方二级关键词))
          
 stB <- df %>% filter(level == "prov") %>%
   filter(is.na(地方二级关键词) ) %>%
