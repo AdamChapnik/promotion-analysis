@@ -1589,6 +1589,335 @@ st323B.g
 
 
 
+```{r ST331A}
+
+stA <-  df %>% filter(level == "poliburo")%>%
+  filter(
+    基本大类别=="党委" )%>%
+  filter (
+    职务一级关键词=="党委常委会/政治局")%>%
+  filter (!(具体职务=="副书记")) %>%
+  filter(grepl("书记", 具体职务)) %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(is.na(地方三级关键词)) 
+
+
+stB <- df %>% filter(level == "prov") %>%
+  filter(!(
+    grepl("党委常委会/政治局", 职务一级关键词) |
+    grepl("办公厅/室", 职务一级关键词)|
+    grepl("政府/国务院（综合）", 职务一级关键词)|
+    grepl("革命委员会", 职务一级关键词)|
+    grepl("顾问委员会", 职务一级关键词)|
+    grepl("政策研究", 职务一级关键词) 
+  )) %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(is.na(地方三级关键词)) %>%
+  filter(
+    grepl("局长", 具体职务) |
+    grepl("厅长", 具体职务)|
+    grepl("主任", 具体职务)|
+    grepl("书记", 具体职务)|
+    grepl("干部", 具体职务)|
+    grepl("部长", 具体职务)|
+    grepl("组长", 具体职务)
+  )
+
+# grp by 地方一级关键词、地方二级关键词
+
+grp_st331A <- vector ("list", 1)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词, 地方二级关键词) %>% group_split
+
+grp_st331A[[1]] <- stbind
+
+# create ties
+st331A.g <- wrk(grp_st331A)
+
+# add tie type
+st331A.g$Tie <- "ST331A"
+
+st331A.g
+```
+
+```{r ST331B}
+
+stA <-  df %>% filter(level == "poliburo")%>%
+  filter(
+    基本大类别=="党委" )%>%
+  filter (
+    职务一级关键词=="党委常委会/政治局")%>%
+  filter (!(具体职务=="副书记")) %>%
+  filter(grepl("书记", 具体职务)) %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(is.na(地方三级关键词)) 
+
+
+stB <- df %>% filter(level == "prov") %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(!(is.na(地方三级关键词))) %>%
+  filter(
+    grepl("党委常委会/政治局", 职务一级关键词) |
+    grepl("政府/国务院（综合）", 职务一级关键词)|
+    grepl("革命委员会", 职务一级关键词)) %>%
+  filter(
+    grepl("书记", 具体职务) |
+    grepl("县长", 具体职务)|
+    grepl("常委", 具体职务)|
+    grepl("主任", 具体职务)|
+    grepl("主席", 具体职务)|
+    grepl("区长", 具体职务)|
+    grepl("常务", 具体职务)|
+    grepl("专职", 具体职务)|
+    grepl("部长", 具体职务)
+  )
+
+
+grp_st331B <- vector ("list", 1)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词, 地方二级关键词) %>% group_split
+
+grp_st331B[[1]] <- stbind 
+
+# create ties
+st331B.g <- wrk(grp_st331B)
+
+# add tie type
+st331B.g$Tie <- "ST331B"
+
+st331B.g
+
+```
+
+
+```{r ST332A}
+stA <-  df %>% filter(level == "poliburo")%>%
+  filter(
+    grepl("革命委员会", 基本大类别) |
+    grepl("政府/国务院", 基本大类别) )%>%
+  filter (
+    grepl("革命委员会", 职务一级关键词) |
+    grepl("政府/国务院（综合）", 职务一级关键词))%>%
+  filter (!(具体职务=="副市长")) %>%
+  filter (!(具体职务=="常务副市长")) %>%
+  filter (!(具体职务=="副市长、党组副书记")) %>%
+  filter (!(具体职务=="副市长（常委）")) %>%
+  filter (!(具体职务=="副市长（非常委）")) %>%
+  filter (!(具体职务=="副市长、党组成员")) %>%
+  filter (!(具体职务=="副主任")) %>%
+  filter(
+    grepl("市长", 具体职务) | grepl("主任", 具体职务) )%>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(is.na(地方三级关键词)) 
+
+
+stB <- df %>% filter(level == "prov") %>%
+  filter(!(
+    grepl("党委常委会/政治局", 职务一级关键词) |
+    grepl("办公厅/室", 职务一级关键词)|
+    grepl("政府/国务院（综合）", 职务一级关键词)|
+    grepl("革命委员会", 职务一级关键词)|
+    grepl("顾问委员会", 职务一级关键词)|
+    grepl("政策研究", 职务一级关键词) 
+  )) %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(is.na(地方三级关键词)) %>%
+  filter(
+    grepl("局长", 具体职务) |
+    grepl("主任", 具体职务)|
+    grepl("书记", 具体职务)|
+    grepl("干部", 具体职务)|
+    grepl("部长", 具体职务)|
+    grepl("组长", 具体职务)
+  )
+
+
+grp_st332A <- vector ("list", 1)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词, 地方二级关键词) %>% group_split
+
+grp_st332A[[1]] <- stbind
+
+# create ties
+st332A.g <- wrk(grp_st332A)
+
+# add tie type
+st332A.g$Tie <- "ST332A"
+
+st332A.g
+
+
+```
+
+
+
+
+```{r ST332B}
+stA <-  df %>% filter(level == "poliburo")%>%
+  filter(
+    grepl("革命委员会", 基本大类别) |
+    grepl("政府/国务院", 基本大类别) )%>%
+  filter (
+    grepl("革命委员会", 职务一级关键词) |
+    grepl("政府/国务院（综合）", 职务一级关键词))%>%
+  filter (!(具体职务=="副市长")) %>%
+  filter (!(具体职务=="常务副市长")) %>%
+  filter (!(具体职务=="副市长、党组副书记")) %>%
+  filter (!(具体职务=="副市长（常委）")) %>%
+  filter (!(具体职务=="副市长（非常委）")) %>%
+  filter (!(具体职务=="副市长、党组成员")) %>%
+  filter (!(具体职务=="副主任")) %>%
+  filter(
+    grepl("市长", 具体职务) | grepl("主任", 具体职务) )%>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(is.na(地方三级关键词)) 
+
+
+stB <- df %>% filter(level == "prov") %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(!(is.na(地方三级关键词) )) %>%
+  filter(
+    grepl("党委常委会/政治局", 职务一级关键词) |
+    grepl("政府/国务院（综合）", 职务一级关键词)|
+    grepl("革命委员会", 职务一级关键词)) %>%
+  filter(
+    grepl("书记", 具体职务) |
+    grepl("县长", 具体职务)|
+    grepl("常委", 具体职务)|
+    grepl("主任", 具体职务)|
+    grepl("主席", 具体职务)|
+    grepl("区长", 具体职务)|
+    grepl("常务", 具体职务)|
+    grepl("专职", 具体职务)
+  )
+
+grp_st332B <- vector ("list", 1)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词, 地方二级关键词) %>% group_split
+
+grp_st332B[[1]] <- stbind
+
+# create ties
+st332B.g <- wrk(grp_st332B)
+
+# add tie type
+st332B.g$Tie <- "ST332B"
+
+st332B.g
+```
+
+
+```{r ST333A}
+stA <-  df %>% filter(level == "poliburo")%>%
+  filter(
+    基本大类别=="党委" )%>%
+  filter (
+    职务一级关键词=="党委常委会/政治局")%>%
+  filter(!(grepl("非常委", 具体职务))) %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(is.na(地方三级关键词)) 
+
+stB <- df %>% filter(level == "prov") %>%
+  filter(!(
+    grepl("党委常委会/政治局", 职务一级关键词) |
+    grepl("办公厅/室", 职务一级关键词)|
+    grepl("政府/国务院（综合）", 职务一级关键词)|
+    grepl("革命委员会", 职务一级关键词)|
+    grepl("顾问委员会", 职务一级关键词)|
+    grepl("政策研究", 职务一级关键词) 
+  )) %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(is.na(地方三级关键词)) %>%
+  filter(
+    grepl("局长", 具体职务) |
+    grepl("主任", 具体职务)|
+    grepl("书记", 具体职务)|
+    grepl("干部", 具体职务)|
+    grepl("部长", 具体职务)|
+    grepl("组长", 具体职务)
+  )
+
+grp_st333A <- vector ("list", 1)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词, 地方二级关键词) %>% group_split
+
+grp_st333A[[1]] <- stbind
+
+# create ties
+st333A.g <- wrk(grp_st333A)
+
+# add tie type
+st333A.g$Tie <- "ST333A"
+
+st333A.g
+
+```
+
+
+
+```{r ST333B}
+stA <-  df %>% filter(level == "poliburo")%>%
+  filter(
+    基本大类别=="党委" )%>%
+  filter (
+    职务一级关键词=="党委常委会/政治局")%>%
+  filter(!(grepl("非常委", 具体职务))) %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(is.na(地方三级关键词)) 
+         
+stB <- df %>% filter(level == "prov") %>%
+  filter(!(is.na(地方一级关键词))) %>%
+  filter(!(is.na(地方二级关键词))) %>%
+  filter(!(is.na(地方三级关键词) )) %>%
+  filter(
+    grepl("党委常委会/政治局", 职务一级关键词) |
+    grepl("政府/国务院（综合）", 职务一级关键词)|
+    grepl("革命委员会", 职务一级关键词)) %>%
+  filter(
+    grepl("书记", 具体职务) |
+    grepl("县长", 具体职务)|
+    grepl("常委", 具体职务)|
+    grepl("主任", 具体职务)|
+    grepl("主席", 具体职务)|
+    grepl("区长", 具体职务)|
+    grepl("常务", 具体职务)|
+    grepl("专职", 具体职务)
+  )
+
+grp_st333B <- vector ("list", 1)
+
+stbind <- rbind(stA, stB)
+stbind <- stbind %>% group_by(地方一级关键词, 地方二级关键词) %>% group_split
+
+grp_st333B[[1]] <- stbind
+
+# create ties
+st333B.g <- wrk(grp_st333B)
+
+# add tie type
+st333B.g$Tie <- "ST333B"
+
+st333B.g      
+```
+
+
+
 
 
 
