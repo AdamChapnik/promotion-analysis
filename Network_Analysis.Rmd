@@ -1271,7 +1271,6 @@ stB <- df %>% filter(level == "prov") %>%
     grepl("政策研究", 职务一级关键词) 
   )) %>%
   filter (!(地方一级关键词=="中央")) %>%
-  filter (!(地区级别=="副省级城市")) %>%
   filter(!(is.na(地方一级关键词)))%>%
   filter(is.na(地方二级关键词) & is.na(地方三级关键词)) %>%
   filter(
@@ -1472,6 +1471,7 @@ stB <- df %>% filter(level == "prov") %>%
     grepl("专职", 具体职务)|
     grepl("部长", 具体职务)
   )%>%
+  filter (!(地区级别=="副省级城市"))%>%
   filter(
     grepl("党委", 基本大类别) |
     grepl("革命委员会", 基本大类别) |
