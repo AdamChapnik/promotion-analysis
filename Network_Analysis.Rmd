@@ -1197,7 +1197,9 @@ stB1 <- df %>% filter(level == "prov") %>%
     grepl("革命委员会", 职务一级关键词) |
     grepl("政府/国务院（综合）", 职务一级关键词) |
     grepl("党委常委会/政治局", 职务一级关键词) 
-  )
+  ) %>%
+  filter(is.na(地方二级关键词) & is.na(地方三级关键词))
+  
 stB2 <- df %>% filter(level == "prov") %>%
   filter(
     grepl("党委", 基本大类别) |
@@ -1213,6 +1215,7 @@ stB2 <- df %>% filter(level == "prov") %>%
     grepl("党委常委会/政治局", 职务一级关键词) )
   ) %>%
   filter(is.na(职务二级关键词) & is.na(职务三级关键词))
+  
 stB3 <- df %>% filter(level == "prov") %>%
   filter(
     grepl("党委常委会/政治局", 职务一级关键词) |
