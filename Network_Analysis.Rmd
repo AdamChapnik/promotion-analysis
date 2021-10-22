@@ -1244,6 +1244,7 @@ stA <-  df %>% filter(level == "poliburo")%>%
   filter (
     职务一级关键词=="党委常委会/政治局")%>%
   filter (!(具体职务=="副书记")) %>%
+  filter (!(地方一级关键词=="中央")) %>%
   filter(grepl("书记", 具体职务)) %>%
   filter(!(is.na(地方一级关键词)))%>%
   filter(is.na(地方二级关键词) & is.na(地方三级关键词)) 
@@ -1266,6 +1267,7 @@ stB <- df %>% filter(level == "prov") %>%
     grepl("顾问委员会", 职务一级关键词)|
     grepl("政策研究", 职务一级关键词) 
   )) %>%
+  filter (!(地方一级关键词=="中央")) %>%
   filter(!(is.na(地方一级关键词)))%>%
   filter(is.na(地方二级关键词) & is.na(地方三级关键词)) %>%
   filter(
