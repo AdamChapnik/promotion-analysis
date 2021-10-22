@@ -1246,8 +1246,11 @@ stB3 <- df %>% filter(level == "prov") %>%
     grepl("市长", 具体职务) |
     grepl("书记", 具体职务)
   ) %>% 
-  filter(grepl("副省级城市", 地区级别) ) 
+  filter(grepl("副省级城市", 地区级别) ) %>% 
+  filter(is.na(地方三级关键词))
+  
 stB <- rbind(stB1, stB2, stB3)
+
 # grp 
 grp_st31 <- vector("list", 1)
 grp_st31[[1]] <- rbind(stA, stB)
