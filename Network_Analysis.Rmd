@@ -1076,38 +1076,58 @@ st23.g
 
 
 
-```{r ST24}
-stA1 <- df %>% filter(level == "poliburo") %>% 
+```{r ST241}
+stA <- df %>% filter(level == "poliburo") %>% 
   filter(grepl("书记", 具体职务)) %>%
   filter(职务一级关键词 == "党委常委会/政治局" & 基本大类别 == "党委")
-stA2 <- df %>% filter(level == "prov") %>%
+
+stB <- df %>% filter(level == "prov") %>%
   filter(基本大类别 == "党委") %>%
   filter(
     !grepl("党委常委会/政治局", 职务一级关键词) |
     !grepl("顾问委员会", 职务一级关键词))
-stA <- rbind(stA1, stA2)
-stB1 <- df %>% filter(level == "poliburo") %>%
-  filter(基本大类别 == "共青团") %>%
-  filter(职务一级关键词 == "共青团委") %>%
-  filter(grepl("书记", 具体职务))
-stB2 <- df %>% filter(level == "prov") %>% 
-  filter(基本大类别 == "共青团") %>%
-  filter(grepl("共青团委", 职务一级关键词))
-stB <- rbind(stB1, stB2)
+
 
 # grp by 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别
 grp_st24A <- stA %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
 grp_st24B <- stB %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
 # create ties
-st24A.g <- wrk(grp_st24A)
-st24B.g <- wrk(grp_st24B)
+st241A.g <- wrk(grp_st24A)
+st241B.g <- wrk(grp_st24B)
 # join
-st24.g <- rbind(st24A.g, st24B.g)
+st241.g <- rbind(st241A.g, st241B.g)
 # add tie type
-st24.g$Tie <- "ST24"
+st241.g$Tie <- "ST241"
 
-st24.g
+st241.g
 ```
+
+
+```{r ST242}
+stA <- df %>% filter(level == "poliburo") %>%
+  filter(基本大类别 == "共青团") %>%
+  filter(职务一级关键词 == "共青团委") %>%
+  filter(grepl("书记", 具体职务))
+
+stB <- df %>% filter(level == "prov") %>% 
+  filter(基本大类别 == "共青团") %>%
+  filter(grepl("共青团委", 职务一级关键词))
+
+
+# grp by 地方一级关键词, 地方二级关键词, 地方三级关键词, 基本大类别
+grp_st24A <- stA %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+grp_st24B <- stB %>% group_by(地方一级关键词, 地方二级关键词, 地方三级关键词) %>% group_split()
+# create ties
+st242A.g <- wrk(grp_st24A)
+st242B.g <- wrk(grp_st24B)
+# join
+st242.g <- rbind(st242A.g, st242B.g)
+# add tie type
+st242.g$Tie <- "ST242"
+
+st242.g
+```
+
 
 
 ```{r ST25}
