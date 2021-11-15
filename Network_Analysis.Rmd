@@ -1196,7 +1196,7 @@ st26.g
 
 
 
-```{r ST31}
+```{r ST31 政治局常委 -- 中共中央/国务院部委领导班子 （副部级）}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     grepl("政治局常委", 具体职务)
@@ -1263,7 +1263,7 @@ st31.g
 ```
 
 
-```{r ST321A}
+```{r ST321A 省委书记 -- 省委、省政府直属部委厅局等机构正副职}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     基本大类别=="党委" )%>%
@@ -1325,7 +1325,7 @@ st321A.g
 ```
 
 
-```{r ST321B}
+```{r ST321B 省委书记  -- 市级领导班子（书记，市长，常委，副书记，副市长）}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     基本大类别=="党委" )%>%
@@ -1385,7 +1385,7 @@ st321B.g
 ```
 
 
-```{r ST322A}
+```{r ST322A 省长 -- 省委、省政府直属部委厅局等机构正副职}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     grepl("革命委员会", 基本大类别) |
@@ -1456,7 +1456,7 @@ st322A.g
 
 
 
-```{r ST322B}
+```{r ST322B 省长 -- 市级领导班子（书记，市长，常委，副书记，副市长）}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     grepl("革命委员会", 基本大类别) |
@@ -1522,7 +1522,7 @@ st322B.g
 ```
 
 
-```{r ST323A}
+```{r ST323A 书记、省长、常委 -- 省委、省政府直属部委厅局等机构正副职}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     基本大类别=="党委" )%>%
@@ -1579,7 +1579,7 @@ st323A.g
 
 ```
 
-```{r ST323B}
+```{r ST323B 书记 省长 常委 -- 市级领导班子（书记，市长，常委，副书记，副市长）}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     基本大类别=="党委" )%>%
@@ -1636,7 +1636,7 @@ st323B.g
 
 
 
-```{r ST331A}
+```{r ST331A 市委书记 -- 市委 市政府直属部局等机构正副职}
 
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
@@ -1690,7 +1690,7 @@ st331A.g$Tie <- "ST331A"
 st331A.g
 ```
 
-```{r ST331B}
+```{r ST331B 市委书记 -- 县级领导班子（书记，县长，常委，副书记，副县长）}
 
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
@@ -1743,7 +1743,7 @@ st331B.g
 ```
 
 
-```{r ST332A}
+```{r ST332A 市长 -- 市委 市政府直属部局等机构正副职}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     grepl("革命委员会", 基本大类别) |
@@ -1808,7 +1808,7 @@ st332A.g
 
 
 
-```{r ST332B}
+```{r ST332B 市长 -- 县级领导班子（书记，县长，常委，副书记，副县长）}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     grepl("革命委员会", 基本大类别) |
@@ -1866,7 +1866,7 @@ st332B.g
 ```
 
 
-```{r ST333A}
+```{r ST333A 市委常委 -- 市委 市政府直属部局等机构正副职}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     基本大类别=="党委" )%>%
@@ -1917,7 +1917,7 @@ st333A.g
 
 
 
-```{r ST333B}
+```{r ST333B 市委常委 -- 县级领导班子（书记，县长，副书记，副县长）}
 stA <-  df %>% filter(level == "poliburo")%>%
   filter(
     基本大类别=="党委" )%>%
