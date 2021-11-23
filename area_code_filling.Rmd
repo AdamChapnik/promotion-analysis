@@ -1,0 +1,508 @@
+---
+title: "area_code_filling"
+author: "Adam Chapnik"
+date: "10/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(haven)
+library(dplyr)
+library(readr)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+xls <- read_excel("~/Desktop/各小组合并20210904 (1).xlsx", sheet = "履历")
+dta <- read_dta("~/Desktop/1990-2019ChineseRegionCode.dta")
+```
+
+There are three hierarchical geographic levels: (1) province, (2) city, (3) county
+
+1. If county name is filled but the code is missing, lookup the name in the dictionary for the associated start and end dates and fill the code accordingly.
+2. If county name is missing but the code is available, lookup the code in the dictionary for the associated start and end dates and fill the name accordingly.
+3. If the city code is filled but the city name is missing, lookup the name in the dictionary for the associated start and end dates and fill the name accordingly.
+4. If the city code and name are missing, use the county code to fill the city code and lookup the code in the dictionary for the associated start and end dates and fill the name accordingly.
+5. If the city name is filled but the city code is still missing, lookup the name in the dictionary for the associated start and end dates and fill the name accordingly.
+6. Repeat (3-5) for province...
+
+xls %>% filter(!is.na(地方三级关键词) & is.na(三级关键词编码) & !is.na(起始时间)) +
+xls %>% filter(is.na(地方三级关键词) & !is.na(三级关键词编码) & !is.na(起始时间)) +
+xls %>% filter(is.na(地方二级关键词) & !is.na(二级关键词编码) & !is.na(起始时间)) +
+xls %>% filter(is.na(地方二级关键词) & is.na(二级关键词编码) & !is.na(三级关键词编码) & !is.na(起始时间)) +
+xls %>% filter(!is.na(地方二级关键词) & is.na(二级关键词编码) & !is.na(起始时间)) +
+xls %>% filter(is.na(地方一级关键词) & !is.na(一级关键词编码) & !is.na(起始时间)) +
+xls %>% filter(is.na(地方一级关键词) & is.na(一级关键词编码) & !is.na(二级关键词编码) & !is.na(起始时间)) +
+xls %>% filter(!is.na(地方一级关键词) & is.na(一级关键词编码) & !is.na(起始时间))
+
+```{r}
+## county name filled, code missing ##
+countycode.na <- xls %>% filter(!is.na(地方三级关键词) & is.na(三级关键词编码) & !is.na(起始时间))
+Y1 <- format(countycode.na$起始时间, "%Y") %>% as.double 
+Y2 <- format(countycode.na$终止时间, "%Y") %>% as.double
+Ys <- cbind(Y1, Y2)
+Ys[is.na(Y2),2] <- Ys[is.na(Y2),1] 
+exps <- nrow(Ys)
+ranges <- vector("list", exps)
+for (i in 1:exps) { 
+  row <- Ys[i,]
+  ranges[[i]] <- row[1]:row[2]
+}
+# find corresponding region for corresponding years 
+regioncode <- vector("character", nrow(countycode.na))
+for (i in 1:nrow(countycode.na)) {
+  Y1 <- first(ranges[[i]])
+  if (Y1 < 1990) {Y1 <- 1990}
+  Y2 <- last(ranges[[i]])
+  if (Y2 < 1990) {Y2 <- 1990}
+  code <- dta %>% filter(region == countycode.na[i,]$地方三级关键词)
+  if (!is.na(Y1) & is.na(Y2)) {
+    regioncode[i] <- "Currently Working?"
+  }else{
+    if (is.na(Y1) & is.na(Y2)) {
+      regioncode[i] <- "Missing Start"
+    }else{
+      if (nrow(code) == 0) {
+        regioncode[i] <- "Misspelled"
+      }else{
+        if (!is.na(Y1) & !is.na(Y2)) {
+          code.first <- code %>% filter(year == Y1) %>% pull(regioncode) %>% as.vector
+          code.last <- code %>% filter(year == Y2) %>% pull(regioncode) %>% as.vector
+          if (length(code.first) == 0 | length(code.last) == 0) {
+            regioncode[i] <- "Misnamed"
+          }else{
+            if (code.first == code.last) {
+              regioncode[i] <- code.first
+            }else{
+              regioncode[i] <- NA
+            }
+          }
+        }
+      }
+    }
+  }
+}
+countycode.na$三级关键词编码 <- regioncode
+not.countycode.na <- xls %>% filter(!(!is.na(地方三级关键词) & is.na(三级关键词编码) & !is.na(起始时间)))
+xls <- rbind(countycode.na, not.countycode.na)
+```
+
+```{r}
+## county name missing, code filled ##
+countyname.na <- xls %>% filter(is.na(地方三级关键词) & !is.na(三级关键词编码) & !is.na(起始时间))
+Y1 <- format(countyname.na$起始时间, "%Y") %>% as.double 
+Y2 <- format(countyname.na$终止时间, "%Y") %>% as.double
+Ys <- cbind(Y1, Y2)
+Ys[is.na(Y2),2] <- Ys[is.na(Y2),1] 
+exps <- nrow(Ys)
+ranges <- vector("list", exps)
+for (i in 1:exps) { 
+  row <- Ys[i,]
+  ranges[[i]] <- row[1]:row[2]
+}
+# find corresponding region for corresponding years 
+region <- vector("character", nrow(countyname.na))
+for (i in 1:nrow(countyname.na)) {
+  Y1 <- first(ranges[[i]])
+  if (Y1 < 1990) {Y1 <- 1990}
+  Y2 <- last(ranges[[i]])
+  if (Y2 < 1990) {Y2 <- 1990}
+  reg <- dta %>% filter(regioncode == countyname.na[i,]$三级关键词编码)
+  reg.first <- reg %>% filter(year == Y1) %>% pull(region) %>% as.vector
+  reg.last <- reg %>% filter(year == Y2) %>% pull(region) %>% as.vector
+  if (filter(reg, year == Y1) %>% nrow() == 0) {
+    region[i] <- "Miscoded"
+  }else{
+    if (Y1 > Y2) {
+      region[i] <- "Flipped Dates"
+    }else{
+      if (is.na(reg.first)) {
+        region[i] <- "Missing Start"
+      }else{
+        if (is.na(reg.last)) {
+          region[i] <- "Currently Working?"
+        }else{
+          if (reg.first == reg.last) {
+            region[i] <- reg.first
+          }else{
+            region[i] <- "Region Change"
+          }
+        }
+      }
+    }
+  }
+}
+countyname.na$地方三级关键词 <- region
+not.countyname.na <- xls %>% filter(!(is.na(地方三级关键词) & !is.na(三级关键词编码) & !is.na(起始时间)))
+xls <- rbind(countyname.na, not.countyname.na)
+```
+
+```{r}
+## have city code but not city name ##
+cityname.na <- xls %>% filter(is.na(地方二级关键词) & !is.na(二级关键词编码) & !is.na(起始时间))
+Y1 <- format(cityname.na$起始时间, "%Y") %>% as.double 
+Y2 <- format(cityname.na$终止时间, "%Y") %>% as.double
+Ys <- cbind(Y1, Y2)
+Ys[is.na(Y2),2] <- Ys[is.na(Y2),1] 
+exps <- nrow(Ys)
+ranges <- vector("list", exps)
+for (i in 1:exps) { 
+  row <- Ys[i,]
+  ranges[[i]] <- row[1]:row[2]
+}
+# find corresponding region for corresponding years 
+region <- vector("character", nrow(cityname.na))
+for (i in 1:nrow(cityname.na)) {
+  Y1 <- first(ranges[[i]])
+  if (Y1 < 1990) {Y1 <- 1990}
+  Y2 <- last(ranges[[i]])
+  if (Y2 < 1990) {Y2 <- 1990}
+  reg <- dta %>% filter(regioncode == cityname.na[i,]$二级关键词编码)
+  reg.first <- reg %>% filter(year == Y1) %>% pull(region) %>% as.vector
+  reg.last <- reg %>% filter(year == Y2) %>% pull(region) %>% as.vector
+  if (filter(reg, year == Y1) %>% nrow() == 0) {
+    region[i] <- "Miscoded"
+  }else{
+    if (filter(reg, year == Y2) %>% nrow() == 0) {
+      region[i] <- "Past 2019"
+    }else{
+      if (Y1 > Y2) {
+        region[i] <- "Flipped Dates"
+      }else{
+        if (is.na(reg.first)) {
+          region[i] <- "Missing Start"
+        }else{
+          if (is.na(reg.last)) {
+            region[i] <- "Currently Working?"
+          }else{
+            if (reg.first == reg.last) {
+              region[i] <- reg.first
+            }else{
+              region[i] <- "Region Change"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+cityname.na$地方二级关键词 <- region
+not.cityname.na <- xls %>% filter(!(is.na(地方二级关键词) & !is.na(二级关键词编码) & !is.na(起始时间)))
+xls <- rbind(cityname.na, not.cityname.na)
+```
+
+```{r}
+## have county code but not city code OR name ##
+# filter xls for NAs under 二级关键词编码
+# for above df, replace last 2 digits of 三级关键词编码 to 00
+GH.na <- xls %>% 
+  filter(is.na(地方二级关键词) &
+           is.na(二级关键词编码) & 
+           !is.na(三级关键词编码) & 
+           !is.na(起始时间) & 
+           三级关键词编码 != "Currently Working?" &
+           三级关键词编码 != "Missing Start" &
+           三级关键词编码 != "Misspelled" &
+           三级关键词编码 != "Misnamed" &
+           三级关键词编码 != "Past 2019"
+)
+Y1 <- format(GH.na$起始时间, "%Y") %>% as.double 
+Y2 <- format(GH.na$终止时间, "%Y") %>% as.double
+Ys <- cbind(Y1, Y2)
+Ys[is.na(Y2),2] <- Ys[is.na(Y2),1] 
+exps <- nrow(Ys)
+ranges <- vector("list", exps)
+for (i in 1:exps) { 
+  row <- Ys[i,]
+  ranges[[i]] <- row[1]:row[2]
+}
+H.na <- GH.na %>% pull(三级关键词编码)
+H.00 <- gsub("..$", "00", H.na) %>% as.double
+GH.na$二级关键词编码 <- H.00
+# find corresponding region for corresponding years 
+region <- vector("character", length(H.00))
+for (i in 1:length(H.00)) {
+  Y1 <- first(ranges[[i]])
+  if (Y1 < 1990) {Y1 <- 1990}
+  Y2 <- last(ranges[[i]])
+  if (Y2 < 1990) {Y2 <- 1990}
+  reg <- dta %>% filter(regioncode == H.00[i])
+  reg.first <- reg %>% filter(year == Y1) %>% pull(region) %>% as.vector
+  reg.last <- reg %>% filter(year == Y2) %>% pull(region) %>% as.vector
+  if (filter(reg, year == Y1) %>% nrow() == 0) {
+    region[i] <- "Miscoded"
+  }else{
+    if (Y1 > Y2) {
+      region[i] <- "Flipped Dates"
+    }else{
+      if (is.na(reg.first)) {
+        region[i] <- "Missing Start"
+      }else{
+        if (is.na(reg.last)) {
+          region[i] <- "Currently Working?"
+        }else{
+          if (reg.first == reg.last) {
+            region[i] <- reg.first
+          }else{
+            region[i] <- "Region Change"
+          }
+        }
+      }
+    }
+  }
+}
+GH.na$地方二级关键词 <- region
+notGH.na <- xls %>% filter(!(is.na(地方二级关键词) &
+           is.na(二级关键词编码) & 
+           !is.na(三级关键词编码) & 
+           !is.na(起始时间) & 
+           三级关键词编码 != "Currently Working?" &
+           三级关键词编码 != "Missing Start" &
+           三级关键词编码 != "Misspelled" &
+           三级关键词编码 != "Misnamed" &
+           三级关键词编码 != "Past 2019" 
+))
+xls <- rbind(GH.na, notGH.na)
+```
+
+```{r}
+## have city name but not code, fill code ##
+citycode.na <- xls %>% filter(!is.na(地方二级关键词) & is.na(二级关键词编码) & !is.na(起始时间))
+Y1 <- format(citycode.na$起始时间, "%Y") %>% as.double 
+Y2 <- format(citycode.na$终止时间, "%Y") %>% as.double
+Ys <- cbind(Y1, Y2)
+Ys[is.na(Y2),2] <- Ys[is.na(Y2),1] 
+exps <- nrow(Ys)
+ranges <- vector("list", exps)
+for (i in 1:exps) { 
+  row <- Ys[i,]
+  ranges[[i]] <- row[1]:row[2]
+}
+# find corresponding region for corresponding years 
+regioncode <- vector("character", nrow(citycode.na))
+for (i in 1:nrow(citycode.na)) {
+  Y1 <- first(ranges[[i]])
+  if (Y1 < 1990) {Y1 <- 1990}
+  Y2 <- last(ranges[[i]])
+  if (Y2 < 1990) {Y2 <- 1990}
+  code <- dta %>% filter(region == citycode.na[i,]$地方二级关键词)
+  if (!is.na(Y1) & is.na(Y2)) {
+    regioncode[i] <- "Currently Working?"
+  }else{
+    if (is.na(Y1) & is.na(Y2)) {
+      regioncode[i] <- "Missing Start"
+    }else{
+      if (nrow(code) == 0) {
+        regioncode[i] <- "Misspelled"
+      }else{
+        if (!is.na(Y1) & !is.na(Y2)) {
+          code.first <- code %>% filter(year == Y1) %>% pull(regioncode) %>% as.vector
+          code.last <- code %>% filter(year == Y2) %>% pull(regioncode) %>% as.vector
+          if (length(code.first) == 0 | length(code.last) == 0) {
+            regioncode[i] <- "Misnamed"
+          }else{
+            if (code.first == code.last) {
+              regioncode[i] <- code.first
+            }else{
+              regioncode[i] <- NA
+            }
+          }
+        }
+      }
+    }
+  }
+}
+citycode.na$二级关键词编码 <- regioncode
+not.citycode.na <- xls %>% filter(!(!is.na(地方二级关键词) & is.na(二级关键词编码) & !is.na(起始时间)))
+xls <- rbind(citycode.na, not.citycode.na)
+```
+
+```{r}
+## province code filled but province name missing ##
+provname.na <- xls %>% filter(is.na(地方一级关键词) & !is.na(一级关键词编码) & !is.na(起始时间))
+Y1 <- format(provname.na$起始时间, "%Y") %>% as.double 
+Y2 <- format(provname.na$终止时间, "%Y") %>% as.double
+Ys <- cbind(Y1, Y2)
+Ys[is.na(Y2),2] <- Ys[is.na(Y2),1] 
+exps <- nrow(Ys)
+ranges <- vector("list", exps)
+for (i in 1:exps) { 
+  row <- Ys[i,]
+  ranges[[i]] <- row[1]:row[2]
+}
+region <- vector("character", nrow(provname.na))
+for (i in 1:nrow(provname.na)) {
+  Y1 <- first(ranges[[i]])
+  if (Y1 < 1990) {Y1 <- 1990}
+  Y2 <- last(ranges[[i]])
+  if (Y2 < 1990) {Y2 <- 1990}
+  reg <- dta %>% filter(regioncode == provname.na[i,]$一级关键词编码)
+  reg.first <- reg %>% filter(year == Y1) %>% pull(region) %>% as.vector
+  reg.last <- reg %>% filter(year == Y2) %>% pull(region) %>% as.vector
+  if (filter(reg, year == Y1) %>% nrow() == 0) {
+    region[i] <- "Miscoded"
+  }else{
+    if (filter(reg, year == Y2) %>% nrow() == 0) {
+      region[i] <- "Past 2019"
+    }else{
+      if (Y1 > Y2) {
+        region[i] <- "Flipped Dates"
+      }else{
+        if (is.na(reg.first)) {
+          region[i] <- "Missing Start"
+        }else{
+          if (is.na(reg.last)) {
+            region[i] <- "Currently Working?"
+          }else{
+            if (reg.first == reg.last) {
+              region[i] <- reg.first
+            }else{
+              region[i] <- "Region Change"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+provname.na$地方一级关键词 <- region
+not.provname.na <- xls %>% filter(!(is.na(地方一级关键词) & !is.na(一级关键词编码) & !is.na(起始时间)))
+xls <- rbind(provname.na, not.provname.na)
+```
+
+```{r}
+## has city full and not province code OR name ##
+EF.na <- xls %>% 
+  filter(is.na(地方一级关键词) & 
+           is.na(一级关键词编码) & 
+           !is.na(地方二级关键词) & 
+           !is.na(二级关键词编码) & 
+           !is.na(起始时间) & 
+           二级关键词编码 != "Currently Working?" &
+           二级关键词编码 != "Missing Start" &
+           二级关键词编码 != "Misspelled" &
+           二级关键词编码 != "Misnamed" &
+           二级关键词编码 != "Past 2019"
+         )
+F.na <- EF.na %>% pull(二级关键词编码) 
+F.00 <- gsub("....$", "0000", F.na) %>% as.double
+EF.na$一级关键词编码 <- F.00
+# get years range for each experience
+Y1 <- format(EF.na$起始时间, "%Y") %>% as.double 
+Y2 <- format(EF.na$终止时间, "%Y") %>% as.double 
+Ys <- cbind(Y1, Y2)
+Ys[is.na(Y2),2] <- Ys[is.na(Y2),1] 
+exps <- nrow(Ys)
+ranges <- vector("list", exps)
+for (i in 1:exps) { 
+  row <- Ys[i,]
+  ranges[[i]] <- row[1]:row[2]
+}
+# find corresponding region for corresponding years 
+region <- vector("character", length(F.00))
+for (i in 1:length(F.00)) {
+  Y1 <- first(ranges[[i]])
+  if (Y1 < 1990) {Y1 <- 1990}
+  Y2 <- last(ranges[[i]])
+  if (Y2 < 1990) {Y2 <- 1990}
+  if (Y2 > 2019) {Y2 <- 2019}
+  reg <- dta %>% filter(regioncode == F.00[i])
+  reg.first <- reg %>% filter(year == Y1) %>% pull(region) %>% as.vector
+  reg.last <- reg %>% filter(year == Y2) %>% pull(region) %>% as.vector
+  if (filter(reg, year == Y1) %>% nrow() == 0) {
+    region[i] <- "Miscoded"
+  }else{
+    if (Y1 > Y2) {
+      region[i] <- "Flipped Dates"
+    }else{
+      if (is.na(reg.first)) {
+        region[i] <- "Missing Start"
+      }else{
+        if (is.na(reg.last)) {
+          region[i] <- "Currently Working?"
+        }else{
+          if (reg.first == reg.last) {
+            region[i] <- reg.first
+          }else{
+            region[i] <- "Region Change"
+          }
+        }
+      }
+    }
+  }
+}
+EF.na$地方一级关键词 <- region
+notEF.na <- xls %>% filter(!(is.na(地方一级关键词) & 
+           is.na(一级关键词编码) & 
+           !is.na(地方二级关键词) & 
+           !is.na(二级关键词编码) & 
+           !is.na(起始时间) & 
+           二级关键词编码 != "Currently Working?" &
+           二级关键词编码 != "Missing Start" &
+           二级关键词编码 != "Misspelled" &
+           二级关键词编码 != "Misnamed" &
+           二级关键词编码 != "Past 2019"))
+xls <- rbind(EF.na, notEF.na)
+```
+
+```{r}
+## have province name but not code, fill code ##
+provcode.na <- xls %>% filter(!is.na(地方一级关键词) & is.na(一级关键词编码) & !is.na(起始时间))
+Y1 <- format(provcode.na$起始时间, "%Y") %>% as.double 
+Y2 <- format(provcode.na$终止时间, "%Y") %>% as.double
+Ys <- cbind(Y1, Y2)
+Ys[is.na(Y2),2] <- Ys[is.na(Y2),1] 
+exps <- nrow(Ys)
+ranges <- vector("list", exps)
+for (i in 1:exps) { 
+  row <- Ys[i,]
+  ranges[[i]] <- row[1]:row[2]
+}
+# find corresponding region for corresponding years 
+regioncode <- vector("character", nrow(provcode.na))
+for (i in 1:nrow(provcode.na)) {
+  Y1 <- first(ranges[[i]])
+  if (Y1 < 1990) {Y1 <- 1990}
+  Y2 <- last(ranges[[i]])
+  if (Y2 < 1990) {Y2 <- 1990}
+  code <- dta %>% filter(region == provcode.na[i,]$地方一级关键词)
+  if (!is.na(Y1) & is.na(Y2)) {
+    regioncode[i] <- "Currently Working?"
+  }else{
+    if (is.na(Y1) & is.na(Y2)) {
+      regioncode[i] <- "Missing Start"
+    }else{
+      if (nrow(code) == 0) {
+        regioncode[i] <- "Misspelled"
+      }else{
+        if (!is.na(Y1) & !is.na(Y2)) {
+          code.first <- code %>% filter(year == Y1) %>% pull(regioncode) %>% as.vector
+          code.last <- code %>% filter(year == Y2) %>% pull(regioncode) %>% as.vector
+          if (length(code.first) == 0 | length(code.last) == 0) {
+            regioncode[i] <- "Misnamed"
+          }else{
+            if (code.first == code.last) {
+              regioncode[i] <- code.first
+            }else{
+              regioncode[i] <- NA
+            }
+          }
+        }
+      }
+    }
+  }
+}
+provcode.na$一级关键词编码 <- regioncode
+not.provcode.na <- xls %>% filter(!(!is.na(地方一级关键词) & is.na(一级关键词编码) & !is.na(起始时间)))
+xls <- rbind(provcode.na, not.provcode.na)
+```
+
+```{r}
+xls <- xls %>% group_by(ID) %>% arrange(ID)
+write_excel_csv(xls, "~/Desktop/CCP_Ties/各小组合并20210904_Filled_V4.xls")
+```
+
+
+
